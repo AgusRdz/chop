@@ -20,11 +20,14 @@ var version = "dev"
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: chop <command> [args...]")
+		printHelp()
 		os.Exit(1)
 	}
 
 	switch os.Args[1] {
+	case "--help", "help", "-h":
+		printHelp()
+		return
 	case "--version", "version":
 		fmt.Printf("chop %s\n", version)
 		return
@@ -237,4 +240,37 @@ func runGain(args []string) {
 		os.Exit(1)
 	}
 	fmt.Println(tracking.FormatGain(stats))
+}
+
+func printHelp() {
+	fmt.Printf(`chop %s — CLI output compressor for AI coding assistants
+
+Usage:
+  chop <command> [args...]    Run command and compress output
+  chop <subcommand>           Run a chop subcommand
+
+Subcommands:
+  gain [--history]            Show token savings stats
+  config                      Show config file path and contents
+  init <bash|zsh|fish>        Output shell integration code
+  capture <command> [args...] Run command and save raw + filtered output
+  help                        Show this help
+  version                     Show version
+
+Shell integration:
+  eval "$(chop init bash)"    Add to ~/.bashrc to auto-wrap all commands
+  eval "$(chop init zsh)"     Add to ~/.zshrc
+  chop init fish | source     Add to fish config
+
+Config:
+  %s
+  tee: true/false             Enable tee mode (show raw on stderr)
+  disabled: [cmd1, cmd2]      Skip filtering for listed commands
+
+Examples:
+  chop git status             Compressed git status
+  chop docker ps              Compact container list
+  chop kubectl get pods       Filtered pod table
+  chop curl https://api.io    Auto-compressed JSON response
+`, version, config.Path())
 }

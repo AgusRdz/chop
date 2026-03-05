@@ -62,8 +62,15 @@ func main() {
 			trackSilent(fullCmd, raw, filtered)
 		}
 	} else {
-		fmt.Print(raw) // passthrough
-		trackSilent(fullCmd, raw, raw)
+		// Auto-detect compression for unrecognized commands
+		autoFiltered, aerr := filters.AutoDetect(raw)
+		if aerr != nil || autoFiltered == raw {
+			fmt.Print(raw)
+			trackSilent(fullCmd, raw, raw)
+		} else {
+			fmt.Print(autoFiltered)
+			trackSilent(fullCmd, raw, autoFiltered)
+		}
 	}
 
 	os.Exit(exitCode)

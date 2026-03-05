@@ -40,6 +40,16 @@ func Get(command string, args []string) FilterFunc {
 		return filterCurl
 	case "http":
 		return filterHttpie
+	case "aws":
+		return getAwsFilter(args)
+	case "az":
+		return getAzFilter(args)
+	case "gcloud":
+		return getGcloudFilter(args)
+	case "mvn":
+		return getMavenFilter(args)
+	case "gradle", "gradlew":
+		return getGradleFilter(args)
 	default:
 		return nil
 	}

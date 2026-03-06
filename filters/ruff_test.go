@@ -53,3 +53,74 @@ func TestFilterRuff_Empty(t *testing.T) {
 		t.Errorf("expected 'no problems', got %q", got)
 	}
 }
+
+func TestFilterRuff_LargeCheck(t *testing.T) {
+	raw := "src/models/user.py:1:1: D100 Missing docstring in public module\n" +
+		"src/models/user.py:5:1: I001 [*] Import block is un-sorted or un-formatted\n" +
+		"src/models/user.py:12:80: E501 Line too long (95 > 79)\n" +
+		"src/models/user.py:15:5: F841 Local variable `temp` is assigned to but never used\n" +
+		"src/services/auth.py:1:1: D100 Missing docstring in public module\n" +
+		"src/services/auth.py:8:1: F401 [*] `os.path` imported but unused\n" +
+		"src/services/auth.py:22:12: E711 Comparison to `None` (use `is None`)\n" +
+		"src/services/auth.py:35:5: B006 Do not use mutable data structures for argument defaults\n" +
+		"src/api/views.py:3:1: I001 [*] Import block is un-sorted or un-formatted\n" +
+		"src/api/views.py:18:5: E722 Do not use bare `except`\n" +
+		"src/api/views.py:25:1: C901 `process_request` is too complex (15 > 10)\n" +
+		"src/api/views.py:67:80: E501 Line too long (102 > 79)\n" +
+		"src/utils/helpers.py:5:1: F401 [*] `typing.List` imported but unused\n" +
+		"src/utils/helpers.py:10:1: D103 Missing docstring in public function\n" +
+		"src/utils/helpers.py:22:9: SIM108 [*] Use ternary operator instead of `if`-`else`-block\n" +
+		"Found 15 errors.\n" +
+		"[*] 4 fixable with the `--fix` option.\n"
+
+	got, err := filterRuff(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) >= len(raw) {
+		t.Errorf("expected compression, got %d >= %d", len(got), len(raw))
+	}
+	// Codes grouped alphabetically
+	for _, code := range []string{"B006", "C901", "D100", "D103", "E501", "E711", "E722", "F401", "F841", "I001", "SIM108"} {
+		if !strings.Contains(got, code) {
+			t.Errorf("expected code %s in output", code)
+		}
+	}
+	// D100 appears twice (user.py:1 and auth.py:1)
+	if !strings.Contains(got, "D100 (2)") {
+		t.Errorf("expected D100 grouped with count 2, got:\n%s", got)
+	}
+	// E501 appears twice
+	if !strings.Contains(got, "E501 (2)") {
+		t.Errorf("expected E501 grouped with count 2, got:\n%s", got)
+	}
+	// F401 appears twice
+	if !strings.Contains(got, "F401 (2)") {
+		t.Errorf("expected F401 grouped with count 2, got:\n%s", got)
+	}
+	// I001 appears twice
+	if !strings.Contains(got, "I001 (2)") {
+		t.Errorf("expected I001 grouped with count 2, got:\n%s", got)
+	}
+	if !strings.Contains(got, "15 problems") {
+		t.Errorf("expected '15 problems' in output, got:\n%s", got)
+	}
+	if !strings.Contains(got, "fixable") {
+		t.Errorf("expected fixable message preserved, got:\n%s", got)
+	}
+}
+
+func TestFilterRuff_FormatOutput(t *testing.T) {
+	// ruff format output has no lint problems — not detected as ruff output
+	raw := "4 files reformatted, 12 files left unchanged"
+
+	got, err := filterRuff(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// No ruff-like markers (no ": F", ": E", ": W", "Found", "fixable")
+	// so looksLikeRuffOutput returns false and raw is returned as-is
+	if got != raw {
+		t.Errorf("expected raw passthrough for format output, got:\n%s", got)
+	}
+}

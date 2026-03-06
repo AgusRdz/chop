@@ -10,7 +10,7 @@ import (
 var (
 	// ruff: src/app.py:1:1: F401 [*] `os` imported but unused
 	// flake8: src/app.py:1:1: F401 'os' imported but unused
-	reRuffProblem = regexp.MustCompile(`^(.+?):(\d+):\d+:\s+([A-Z]\d+)\s+(.+)`)
+	reRuffProblem = regexp.MustCompile(`^(.+?):(\d+):\d+:\s+([A-Z]+\d+)\s+(.+)`)
 	reRuffSummary = regexp.MustCompile(`(?i)^Found\s+(\d+)\s+errors?`)
 	reRuffFixable = regexp.MustCompile(`(?i)\d+\s+fixable`)
 )

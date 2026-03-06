@@ -14,6 +14,7 @@ import (
 	"github.com/AgusRdz/chop/filters"
 	"github.com/AgusRdz/chop/hooks"
 	readpkg "github.com/AgusRdz/chop/read"
+	"github.com/AgusRdz/chop/updater"
 	"github.com/AgusRdz/chop/shell"
 	"github.com/AgusRdz/chop/tee"
 	"github.com/AgusRdz/chop/tracking"
@@ -34,6 +35,9 @@ func main() {
 		return
 	case "--version", "version":
 		fmt.Printf("chop %s\n", version)
+		return
+	case "update":
+		updater.Run(version)
 		return
 	case "gain":
 		runGain(os.Args[2:])
@@ -402,6 +406,7 @@ Subcommands:
   discover                    Scan Claude Code logs for missed chop opportunities
   hook-audit                  Show last 20 hook rewrite log entries
   hook-audit --clear          Clear the hook audit log
+  update                      Update to the latest version
   help                        Show this help
   version                     Show version
 

@@ -1,21 +1,34 @@
 # chop
 
-CLI output compressor for AI coding assistants.
+CLI output compressor for AI coding agents.
 
-Reduces LLM token consumption 50-98% by filtering and compressing CLI output.
+Reduces token consumption by 50-98% by filtering and compressing CLI output.
+Works with **any AI coding agent** — Claude Code, Cursor, Copilot, Aider, or
+any tool that runs shell commands and reads the output.
+
 Proxies any command, applies smart filtering for known tools, and auto-detects
 JSON/CSV/table/log formats for everything else.
 
 ## Install
 
 ```bash
-git clone ssh://git@gitlab.local:2222/tools/chop.git
+curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | sh
+```
+
+Or with a specific version:
+
+```bash
+CHOP_VERSION=v0.8.0 curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | sh
+```
+
+Or build from source (requires Docker):
+
+```bash
+git clone https://github.com/AgusRdz/chop.git
 cd chop
 make test       # run tests
 make install    # build for your platform + copy to ~/bin/
 ```
-
-Requires Docker (builds in container, no local Go needed).
 
 ## Usage
 
@@ -26,6 +39,57 @@ chop terraform plan    # resource summary, no attribute noise
 chop curl https://api  # JSON auto-compressed to structure + types
 chop anything          # auto-detects JSON/CSV/table/logs and compresses
 ```
+
+## Agent Integration
+
+chop works with any AI coding agent. Pick the integration that fits your setup:
+
+### Direct (any agent)
+
+Prefix commands with `chop` in your agent's instructions or prompt:
+
+```
+When running CLI commands, prefix with `chop` for read-only commands:
+  chop git status, chop docker ps, chop npm test
+```
+
+### Shell integration (any agent)
+
+Auto-wraps all supported commands in your shell:
+
+```bash
+# bash
+echo 'eval "$(chop init bash)"' >> ~/.bashrc
+
+# zsh
+echo 'eval "$(chop init zsh)"' >> ~/.zshrc
+
+# fish
+chop init fish | source  # add to fish config
+```
+
+### Claude Code hook
+
+Automatically rewrites Bash tool calls — zero config after install:
+
+```bash
+chop init --global       # register PreToolUse hook
+chop init --uninstall    # remove hook
+```
+
+### File reading
+
+Language-aware file compression — strips comments and blank lines:
+
+```bash
+chop read src/main.go              # minimal: remove comments, collapse blanks
+chop read src/main.go --aggressive # also remove imports and all blank lines
+chop read src/main.go --lines 50   # smart truncation to 50 lines
+chop read src/main.go -n           # with line numbers
+```
+
+Supports Go, Rust, Python, JavaScript/TypeScript, C/C++, C#, Java, Ruby,
+Shell, HTML/XML, CSS/SCSS, SQL, YAML, Markdown, and more.
 
 ## Supported Commands
 
@@ -76,29 +140,52 @@ chop anything          # auto-detects JSON/CSV/table/logs and compresses
 | **System** | `ss` / `netstat` | (all) | 60-80% |
 | **System** | `df` / `du` | (all) | 50-70% |
 
-## chop gain
+## Tracking
 
-Track cumulative token savings across all commands:
+Track cumulative token savings:
 
 ```bash
 chop gain              # summary stats
 chop gain --history    # last 20 commands with per-command savings
+chop gain --summary    # per-command breakdown
 ```
-
-All commands are tracked in a local SQLite database. Use `chop gain` to see
-how many tokens you've saved over time.
 
 ## Auto-detect
 
 Any command not in the supported list still gets compressed. chop auto-detects:
 
-- **JSON** -- compressed to structure + types (arrays summarized)
-- **CSV/TSV** -- column headers + row count
-- **Tables** -- essential columns, aligned
-- **Log lines** -- deduplicated with counts, grouped by level
+- **JSON** — compressed to structure + types (arrays summarized)
+- **CSV/TSV** — column headers + row count
+- **Tables** — essential columns, aligned
+- **Log lines** — deduplicated with counts, grouped by level
 
 This means `chop <anything>` works. Known commands get purpose-built filters;
 everything else gets generic compression.
+
+## Other Subcommands
+
+```bash
+chop config            # show config file path and contents
+chop discover          # scan Claude Code logs for missed chop opportunities
+chop hook-audit        # show last 20 hook rewrite log entries
+chop capture <cmd>     # run command and save raw + filtered output as fixtures
+chop help              # show help
+chop version           # show version
+```
+
+## Configuration
+
+Config file at `~/.config/chop/config.yml`:
+
+```yaml
+# Save raw output for LLM re-read
+tee: true
+
+# Skip filtering for specific commands
+disabled:
+  - curl
+  - grep
+```
 
 ## Development
 
@@ -108,6 +195,8 @@ make build             # build (linux, in container)
 make install           # build for your platform + install to ~/bin/
 make cross             # build all platforms
 make clean             # remove binaries
+make release-patch     # tag + push next patch version
+make release-minor     # tag + push next minor version
 ```
 
 Version is injected automatically from git tags via `-ldflags`.

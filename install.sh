@@ -56,5 +56,19 @@ case ":$PATH:" in
     echo "NOTE: ${INSTALL_DIR} is not in your PATH."
     echo "Add it with:"
     echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+    echo ""
     ;;
 esac
+
+echo "Next steps:"
+echo ""
+echo "  # Use directly with any command:"
+echo "  chop git status"
+echo "  chop docker ps"
+echo ""
+echo "  # Shell integration (auto-wrap all supported commands):"
+echo "  echo 'eval \"\$(chop init bash)\"' >> ~/.bashrc"
+echo "  echo 'eval \"\$(chop init zsh)\"'  >> ~/.zshrc"
+echo ""
+echo "  # Claude Code hook (auto-rewrite Bash tool calls):"
+echo "  chop init --global"

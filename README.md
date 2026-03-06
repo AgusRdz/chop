@@ -1,14 +1,11 @@
 # chop
 
-**CLI output compressor for AI coding agents.**
+**CLI output compressor for Claude Code.**
 
-AI coding agents waste 50-90% of their context window on verbose CLI output —
+Claude Code wastes 50-90% of its context window on verbose CLI output —
 build logs, test results, container listings, git diffs. **chop** compresses
-that output before the agent sees it, saving tokens and keeping conversations
+that output before Claude sees it, saving tokens and keeping conversations
 focused.
-
-Works with **any AI coding agent**: Claude Code, Cursor, Copilot, Aider, Windsurf,
-or any tool that runs shell commands.
 
 ## Before & After
 
@@ -117,6 +114,7 @@ Register a PreToolUse hook that automatically wraps every Bash command:
 ```bash
 chop init --global       # install hook
 chop init --uninstall    # remove hook
+chop init --status       # check if installed
 ```
 
 After this, every command Claude Code runs gets compressed transparently.
@@ -137,38 +135,6 @@ When running CLI commands via Bash, prefix with `chop` for read-only commands:
 Do NOT use chop for: interactive commands, pipes, redirects, or write commands
 (git commit, git push, npm init, docker run).
 ```
-
-### Cursor / Copilot / Other Agents
-
-Add to your agent's rules or instructions file (`.cursorrules`, `.github/copilot-instructions.md`, etc.):
-
-```
-When running CLI commands, prefix read-only commands with `chop` to reduce output:
-  chop git status, chop docker ps, chop npm test, chop cargo build
-Do not use chop for: interactive commands, pipes, or write operations.
-```
-
-### Shell Integration (any agent, any workflow)
-
-Auto-wraps all supported commands in your shell — works with every agent
-that spawns a shell:
-
-```bash
-# bash
-echo 'eval "$(chop init bash)"' >> ~/.bashrc
-
-# zsh
-echo 'eval "$(chop init zsh)"' >> ~/.zshrc
-
-# fish
-chop init fish | source
-
-# PowerShell
-chop init powershell | Invoke-Expression          # current session
-Add-Content $PROFILE (chop init powershell)       # permanent
-```
-
-Use `unchop <command>` to bypass chop and run the original command.
 
 ## Supported Commands (52+)
 
@@ -199,7 +165,7 @@ Any command not listed above still gets compressed via auto-detection
 ## File Reading
 
 `chop read` compresses source files by stripping comments and blank lines —
-useful when you want an AI agent to read a file with less noise:
+useful when you want Claude to read a file with less noise:
 
 ```bash
 chop read src/server.go                     # strip comments, collapse blanks

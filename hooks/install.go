@@ -42,6 +42,66 @@ func Uninstall() {
 	fmt.Printf("chop hook removed from %s\n", settingsPath)
 }
 
+// IsInstalled checks whether the chop hook is registered in ~/.claude/settings.json.
+func IsInstalled() (bool, string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false, ""
+	}
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+	settings, err := readSettings(settingsPath)
+	if err != nil {
+		return false, settingsPath
+	}
+
+	hooksRaw, ok := settings["hooks"]
+	if !ok {
+		return false, settingsPath
+	}
+	hooksMap, ok := hooksRaw.(map[string]interface{})
+	if !ok {
+		return false, settingsPath
+	}
+
+	preToolUseRaw, ok := hooksMap["PreToolUse"]
+	if !ok {
+		return false, settingsPath
+	}
+	preToolUse, ok := preToolUseRaw.([]interface{})
+	if !ok {
+		return false, settingsPath
+	}
+
+	for _, entry := range preToolUse {
+		m, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if matcher, _ := m["matcher"].(string); matcher != "Bash" {
+			continue
+		}
+		hooksArrayRaw, ok := m["hooks"]
+		if !ok {
+			continue
+		}
+		hooksArray, ok := hooksArrayRaw.([]interface{})
+		if !ok {
+			continue
+		}
+		for _, h := range hooksArray {
+			hMap, ok := h.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			if isChopHook(hMap) {
+				return true, settingsPath
+			}
+		}
+	}
+
+	return false, settingsPath
+}
+
 func chopBinaryPath() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {

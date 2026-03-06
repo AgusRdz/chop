@@ -16,7 +16,6 @@ import (
 	"github.com/AgusRdz/chop/hooks"
 	readpkg "github.com/AgusRdz/chop/read"
 	"github.com/AgusRdz/chop/updater"
-	"github.com/AgusRdz/chop/shell"
 	"github.com/AgusRdz/chop/tee"
 	"github.com/AgusRdz/chop/tracking"
 )
@@ -63,7 +62,7 @@ func main() {
 		return
 	case "init":
 		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: chop init <bash|zsh|fish|powershell|--global|--uninstall>")
+			fmt.Fprintln(os.Stderr, "usage: chop init <--global|--uninstall|--status>")
 			os.Exit(1)
 		}
 		switch os.Args[2] {
@@ -71,8 +70,17 @@ func main() {
 			hooks.Install()
 		case "--uninstall":
 			hooks.Uninstall()
+		case "--status":
+			installed, path := hooks.IsInstalled()
+			if installed {
+				fmt.Printf("chop hook is installed (%s)\n", path)
+			} else {
+				fmt.Printf("chop hook is NOT installed\n")
+				fmt.Println("run 'chop init --global' to install")
+			}
 		default:
-			fmt.Print(shell.GenerateInit(os.Args[2]))
+			fmt.Fprintf(os.Stderr, "unknown flag %q\nusage: chop init <--global|--uninstall|--status>\n", os.Args[2])
+			os.Exit(1)
 		}
 		return
 	}
@@ -411,7 +419,7 @@ func runRead(args []string) {
 }
 
 func printHelp() {
-	fmt.Printf(`chop %s — CLI output compressor for AI coding assistants
+	fmt.Printf(`chop %s — CLI output compressor for Claude Code
 
 Usage:
   chop <command> [args...]    Run command and compress output
@@ -422,9 +430,9 @@ Subcommands:
   gain --history              Recent commands with savings
   gain --summary              Per-command savings breakdown
   config                      Show config file path and contents
-  init <bash|zsh|fish>        Output shell integration code
   init --global               Install Claude Code hook (~/.claude/settings.json)
   init --uninstall            Remove Claude Code hook
+  init --status               Check if hook is installed
   read <file|-> [flags]       Read file or stdin with language-aware compression
   capture <command> [args...] Run command and save raw + filtered output
   discover                    Scan Claude Code logs for missed chop opportunities
@@ -434,15 +442,10 @@ Subcommands:
   help                        Show this help
   version                     Show version
 
-Shell integration:
-  eval "$(chop init bash)"                  Add to ~/.bashrc
-  eval "$(chop init zsh)"                   Add to ~/.zshrc
-  chop init fish | source                   Add to fish config
-  chop init powershell | Invoke-Expression  Add to $PROFILE
-
 Claude Code integration:
   chop init --global          Register PreToolUse hook for Claude Code
   chop init --uninstall       Remove the hook
+  chop init --status          Check hook installation status
 
 Read flags:
   -                           Read from stdin (use --ext for language hint)

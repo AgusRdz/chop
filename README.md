@@ -63,8 +63,8 @@ curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | sh
 Specific version or custom directory:
 
 ```bash
-CHOP_VERSION=v0.10.1 curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | sh
-CHOP_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | CHOP_VERSION=v0.10.1 sh
+curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | CHOP_INSTALL_DIR=/usr/local/bin sh
 ```
 
 Or with Go:
@@ -90,7 +90,7 @@ source ~/.zshrc  # or ~/.bashrc
 To install to a custom directory:
 
 ```bash
-CHOP_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | CHOP_INSTALL_DIR=/usr/local/bin sh
 ```
 
 Update to latest:

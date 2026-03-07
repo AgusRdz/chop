@@ -1,11 +1,17 @@
 # chop
 
+<p align="center">
+  <img src="logo.png" alt="chop logo" width="200" />
+</p>
+
 **CLI output compressor for Claude Code.**
 
 Claude Code wastes 50-90% of its context window on verbose CLI output —
 build logs, test results, container listings, git diffs. **chop** compresses
 that output before Claude sees it, saving tokens and keeping conversations
 focused.
+
+The name comes from _chop chop_: the sound of something eating through all that verbosity before it ever reaches the context window.
 
 ## Before & After
 
@@ -176,6 +182,14 @@ total: 318 commands, 89,234 tokens saved (73.2% avg)
 chop hook-audit        # show last 20 hook rewrite log entries
 chop hook-audit --clear
 chop config            # show config file path and contents
+```
+
+## Uninstall & Reset
+
+```bash
+chop uninstall                # remove hook, data, config, and binary
+chop uninstall --keep-data    # uninstall but preserve tracking history
+chop reset                    # clear tracking data and audit log, keep installation
 ```
 
 ## Configuration

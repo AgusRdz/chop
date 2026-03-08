@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -356,10 +357,20 @@ func checkInstallDir() {
 	if err != nil {
 		return
 	}
+
 	oldDir := filepath.Join(home, "bin")
-	if strings.HasPrefix(exe, oldDir+string(filepath.Separator)) || exe == filepath.Join(oldDir, "chop") {
+	if !strings.HasPrefix(exe, oldDir+string(filepath.Separator)) && exe != filepath.Join(oldDir, "chop") && exe != filepath.Join(oldDir, "chop.exe") {
+		return
+	}
+
+	fmt.Println("")
+	fmt.Println("note: chop is installed in ~/bin, which is no longer the recommended location.")
+
+	if runtime.GOOS == "windows" {
+		fmt.Println("run the migration script to move it to %LOCALAPPDATA%\\Programs\\chop:")
 		fmt.Println("")
-		fmt.Println("note: chop is installed in ~/bin, which is no longer the recommended location.")
+		fmt.Println("  irm https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.ps1 | iex")
+	} else {
 		fmt.Println("run the migration script to move it to ~/.local/bin:")
 		fmt.Println("")
 		fmt.Println("  curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.sh | sh")

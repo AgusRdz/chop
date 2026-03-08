@@ -56,6 +56,8 @@ db         postgres:16-alpine    Up 2h    :5432->5432
 
 ## Install
 
+**macOS / Linux:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | sh
 ```
@@ -63,22 +65,8 @@ curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | sh
 Specific version or custom directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | CHOP_VERSION=v0.10.1 sh
+curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | CHOP_VERSION=v1.0.0 sh
 curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | CHOP_INSTALL_DIR=/usr/local/bin sh
-```
-
-Or with Go:
-
-```bash
-go install github.com/AgusRdz/chop@latest
-```
-
-Or build from source (requires Docker):
-
-```bash
-git clone https://github.com/AgusRdz/chop.git
-cd chop
-make install    # builds + copies to ~/bin/
 ```
 
 The installer places the binary in `~/.local/bin` by default. If it is not in your PATH, it is added automatically to `~/.zshrc` or `~/.bashrc`. Reload your shell after installing:
@@ -87,10 +75,33 @@ The installer places the binary in `~/.local/bin` by default. If it is not in yo
 source ~/.zshrc  # or ~/.bashrc
 ```
 
-To install to a custom directory:
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/AgusRdz/chop/main/install.ps1 | iex
+```
+
+Specific version or custom directory:
+
+```powershell
+$env:CHOP_VERSION="v1.0.0"; irm https://raw.githubusercontent.com/AgusRdz/chop/main/install.ps1 | iex
+$env:CHOP_INSTALL_DIR="C:\tools\chop"; irm https://raw.githubusercontent.com/AgusRdz/chop/main/install.ps1 | iex
+```
+
+The installer places the binary in `%LOCALAPPDATA%\Programs\chop` by default and adds it to your user PATH automatically. Restart your terminal after installing.
+
+**With Go:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/install.sh | CHOP_INSTALL_DIR=/usr/local/bin sh
+go install github.com/AgusRdz/chop@latest
+```
+
+**Build from source (requires Docker):**
+
+```bash
+git clone https://github.com/AgusRdz/chop.git
+cd chop
+make install    # builds + copies to ~/.local/bin/
 ```
 
 Update to latest:
@@ -204,10 +215,18 @@ chop config            # show config file path and contents
 
 ## Migrating from ~/bin
 
-Versions before v0.14.4 installed the binary to `~/bin`. Run the migration script to move it to `~/.local/bin` and update your shell config automatically:
+Versions before v0.14.4 installed the binary to `~/bin`. Run the migration script to move it to the standard location and update your shell config automatically.
+
+**macOS / Linux:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.sh | sh
+```
+
+Then reload your shell:
+
+```bash
+source ~/.zshrc  # or ~/.bashrc
 ```
 
 Or manually:
@@ -215,19 +234,26 @@ Or manually:
 ```bash
 mkdir -p ~/.local/bin
 mv ~/bin/chop ~/.local/bin/chop
-```
-
-Then remove `~/bin` from your shell config (`~/.zshrc` or `~/.bashrc`) and add `~/.local/bin` if it's not already there:
-
-```bash
+# remove ~/bin from ~/.zshrc or ~/.bashrc, then add:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Reload your shell:
+**Windows (PowerShell):**
 
-```bash
-source ~/.zshrc  # or ~/.bashrc
+```powershell
+irm https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.ps1 | iex
 ```
+
+Or manually:
+
+```powershell
+New-Item -ItemType Directory -Force "$env:LOCALAPPDATA\Programs\chop"
+Move-Item "$env:USERPROFILE\bin\chop.exe" "$env:LOCALAPPDATA\Programs\chop\chop.exe"
+# then update your PATH in System Properties or via:
+[Environment]::SetEnvironmentVariable("PATH", "$env:LOCALAPPDATA\Programs\chop;" + [Environment]::GetEnvironmentVariable("PATH","User"), "User")
+```
+
+Restart your terminal after migrating.
 
 ## Uninstall & Reset
 

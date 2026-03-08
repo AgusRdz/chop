@@ -99,6 +99,12 @@ Update to latest:
 chop update
 ```
 
+After updating, chop automatically re-execs the new binary and runs `--post-update-check` to verify the install location. If chop is installed in the legacy `~/bin` directory, it will suggest running the migration script. You can also run this check manually at any time:
+
+```bash
+chop --post-update-check
+```
+
 ## Quick Start
 
 ### Use directly

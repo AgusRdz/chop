@@ -387,6 +387,7 @@ Subcommands:
   uninstall --keep-data       Uninstall but preserve tracking history
   reset                       Clear data (tracking, audit log) — keep installation
   update                      Update to the latest version
+  --post-update-check         Check install location after an update (called automatically by update)
   help                        Show this help
   version                     Show version
 

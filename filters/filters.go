@@ -106,6 +106,24 @@ func Get(command string, args []string) FilterFunc {
 		return filterNetstat
 	case "df", "du":
 		return filterDf
+	case "find":
+		return filterAutoDetect
+	case "node", "node16", "node18", "node20", "node22":
+		return filterAutoDetect
+	case "acli":
+		return getAcliFilter(args)
+	default:
+		return nil
+	}
+}
+
+func getAcliFilter(args []string) FilterFunc {
+	if len(args) == 0 {
+		return nil
+	}
+	switch args[0] {
+	case "jira":
+		return filterAutoDetect
 	default:
 		return nil
 	}
@@ -310,8 +328,12 @@ func getNpxFilter(args []string) FilterFunc {
 		return nil
 	}
 	switch args[0] {
-	case "jest", "vitest", "mocha":
+	case "jest", "vitest", "mocha", "playwright":
 		return filterNpmTestCmd
+	case "tsc":
+		return filterTsc
+	case "ng":
+		return getAngularFilter(args[1:])
 	default:
 		return nil
 	}

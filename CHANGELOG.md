@@ -2,6 +2,11 @@
 
 All notable changes to chop are documented here.
 
+## [Unreleased]
+
+### Features
+- Add changelog generation and `chop changelog` command
+([68c6a8a](https://github.com/AgusRdz/chop/commit/68c6a8ac7a785ef38a0792b7ca6a06fee8769614))
 ## [1.6.0] - 2026-03-12
 
 ### Bug Fixes

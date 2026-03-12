@@ -74,6 +74,13 @@ func Init() error {
 			filtered_tokens INTEGER NOT NULL,
 			savings_pct REAL NOT NULL
 		)`)
+		if dbErr != nil {
+			return
+		}
+		_, dbErr = db.Exec(`CREATE TABLE IF NOT EXISTS unchopped_skip (
+			command TEXT PRIMARY KEY,
+			added_at TEXT NOT NULL
+		)`)
 	})
 	return dbErr
 }
@@ -275,8 +282,11 @@ func GetUnchopped() ([]UnchoppedSummary, error) {
 		WHERE cmd NOT IN (
 			SELECT DISTINCT cmd FROM cmd_key WHERE savings_pct > 0
 		)
+		AND cmd NOT IN (
+			SELECT command FROM unchopped_skip
+		)
 		GROUP BY cmd
-		ORDER BY cnt DESC
+		ORDER BY total_raw DESC, cnt DESC
 	`)
 	if err != nil {
 		return nil, err
@@ -294,20 +304,106 @@ func GetUnchopped() ([]UnchoppedSummary, error) {
 	return results, rows.Err()
 }
 
+// SkipUnchopped marks a command as intentionally not needing a filter.
+func SkipUnchopped(cmd string) error {
+	if err := Init(); err != nil {
+		return err
+	}
+	now := time.Now().Local().Format("2006-01-02 15:04:05")
+	_, err := db.Exec(`INSERT OR REPLACE INTO unchopped_skip (command, added_at) VALUES (?, ?)`, cmd, now)
+	return err
+}
+
+// DeleteCommand removes all tracking records for a command key (first two words).
+// This permanently erases the command from the history and unchopped report.
+func DeleteCommand(cmd string) error {
+	if err := Init(); err != nil {
+		return err
+	}
+	// The tracking table stores full command strings; match on the key prefix.
+	// Key is first two words, so match "cmd" or "cmd ..." (single-word keys too).
+	_, err := db.Exec(`DELETE FROM tracking WHERE command = ? OR command LIKE ?`, cmd, cmd+" %")
+	if err != nil {
+		return err
+	}
+	// Also remove from skip list if present.
+	_, err = db.Exec(`DELETE FROM unchopped_skip WHERE command = ?`, cmd)
+	return err
+}
+
+// UnskipUnchopped removes a command from the skip list.
+func UnskipUnchopped(cmd string) error {
+	if err := Init(); err != nil {
+		return err
+	}
+	_, err := db.Exec(`DELETE FROM unchopped_skip WHERE command = ?`, cmd)
+	return err
+}
+
+// GetSkippedCommands returns all commands in the skip list, ordered alphabetically.
+func GetSkippedCommands() ([]string, error) {
+	if err := Init(); err != nil {
+		return nil, err
+	}
+	rows, err := db.Query(`SELECT command FROM unchopped_skip ORDER BY command`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var cmds []string
+	for rows.Next() {
+		var cmd string
+		if err := rows.Scan(&cmd); err != nil {
+			return nil, err
+		}
+		cmds = append(cmds, cmd)
+	}
+	return cmds, rows.Err()
+}
+
 // FormatUnchopped formats the unchopped commands report.
-func FormatUnchopped(summaries []UnchoppedSummary) string {
-	if len(summaries) == 0 {
+// summaries are active candidates; skipped are manually skipped commands;
+// filtered are commands auto-excluded because a registered filter exists for them.
+// verbose disables command name truncation.
+func FormatUnchopped(summaries []UnchoppedSummary, skipped []string, filtered []UnchoppedSummary, verbose bool) string {
+	if len(summaries) == 0 && len(skipped) == 0 && len(filtered) == 0 {
 		return "all commands are being chopped! 🎉\n"
 	}
 	var b strings.Builder
-	b.WriteString("commands never compressed (candidates for new filters):\n\n")
-	b.WriteString(fmt.Sprintf("  %-25s %5s %10s\n", "COMMAND", "CALLS", "TOKENS"))
-	b.WriteString(fmt.Sprintf("  %-25s %5s %10s\n", strings.Repeat("─", 25), strings.Repeat("─", 5), strings.Repeat("─", 10)))
-	for _, s := range summaries {
-		b.WriteString(fmt.Sprintf("  %-25s %5d %10s\n", s.Command, s.Count, formatNum(s.TotalTokens)))
+	if len(summaries) > 0 {
+		b.WriteString("no filter registered — output passes through raw (write a filter to compress):\n\n")
+		writeUnchoppedTable(&b, summaries, verbose)
+		b.WriteString(fmt.Sprintf("\n  %d command(s) — focus on high AVG first\n", len(summaries)))
+	} else {
+		b.WriteString("no unfiltered candidates (all commands compress or are skipped)\n")
 	}
-	b.WriteString(fmt.Sprintf("\n  %d command(s) with 0%% savings — consider writing filters for the top ones\n", len(summaries)))
+	if len(filtered) > 0 {
+		b.WriteString("\nfilter registered — 0% runs happen when output is already minimal (no action needed):\n\n")
+		writeUnchoppedTable(&b, filtered, verbose)
+		b.WriteString("\n")
+	}
+	if len(skipped) > 0 {
+		b.WriteString("\nskipped (no filter needed):\n")
+		b.WriteString(fmt.Sprintf("  %s\n", strings.Join(skipped, ", ")))
+	}
 	return b.String()
+}
+
+func writeUnchoppedTable(b *strings.Builder, rows []UnchoppedSummary, verbose bool) {
+	const cmdWidth = 25
+	b.WriteString(fmt.Sprintf("  %-25s %5s %10s %6s\n", "COMMAND", "CALLS", "TOKENS", "AVG"))
+	b.WriteString(fmt.Sprintf("  %-25s %5s %10s %6s\n", strings.Repeat("─", cmdWidth), strings.Repeat("─", 5), strings.Repeat("─", 10), strings.Repeat("─", 6)))
+	for _, s := range rows {
+		cmd := s.Command
+		if !verbose && len(cmd) > cmdWidth {
+			cmd = cmd[:cmdWidth-3] + "..."
+		}
+		avg := 0
+		if s.Count > 0 {
+			avg = s.TotalTokens / s.Count
+		}
+		b.WriteString(fmt.Sprintf("  %-25s %5d %10s %6d\n", cmd, s.Count, formatNum(s.TotalTokens), avg))
+	}
 }
 
 // Cleanup removes records older than the given number of days.

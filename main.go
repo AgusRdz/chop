@@ -262,25 +262,83 @@ func runConfig() {
 }
 
 func runGain(args []string) {
-	var showHistory, showSummary, showUnchopped bool
-	for _, a := range args {
-		switch a {
+	var showHistory, showSummary, showUnchopped, verbose bool
+	var skipCmd, unskipCmd, deleteCmd string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
 		case "--history":
 			showHistory = true
 		case "--summary":
 			showSummary = true
 		case "--unchopped":
 			showUnchopped = true
+		case "--verbose", "-v":
+			verbose = true
+			showUnchopped = true
+		case "--skip":
+			if i+1 < len(args) {
+				i++
+				skipCmd = args[i]
+				showUnchopped = true
+			}
+		case "--unskip":
+			if i+1 < len(args) {
+				i++
+				unskipCmd = args[i]
+				showUnchopped = true
+			}
+		case "--delete":
+			if i+1 < len(args) {
+				i++
+				deleteCmd = args[i]
+			}
 		}
 	}
 
+	if deleteCmd != "" {
+		if err := tracking.DeleteCommand(deleteCmd); err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to delete command: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("deleted all records for %q\n", deleteCmd)
+		return
+	}
+
 	if showUnchopped {
+		if skipCmd != "" {
+			if err := tracking.SkipUnchopped(skipCmd); err != nil {
+				fmt.Fprintf(os.Stderr, "chop: failed to skip command: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		if unskipCmd != "" {
+			if err := tracking.UnskipUnchopped(unskipCmd); err != nil {
+				fmt.Fprintf(os.Stderr, "chop: failed to unskip command: %v\n", err)
+				os.Exit(1)
+			}
+		}
 		summaries, err := tracking.GetUnchopped()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "chop: failed to read unchopped: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Print(tracking.FormatUnchopped(summaries))
+		// Auto-exclude commands that already have a registered filter —
+		// they're just not compressing for this specific invocation (stale data).
+		var candidates, filteredCmds []tracking.UnchoppedSummary
+		for _, s := range summaries {
+			parts := strings.Fields(s.Command)
+			if len(parts) > 0 && filters.HasFilter(parts[0], parts[1:]) {
+				filteredCmds = append(filteredCmds, s)
+				continue
+			}
+			candidates = append(candidates, s)
+		}
+		skipped, err := tracking.GetSkippedCommands()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to read skip list: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(tracking.FormatUnchopped(candidates, skipped, filteredCmds, verbose))
 		return
 	}
 
@@ -638,6 +696,9 @@ Subcommands:
   gain --history              Recent commands with savings
   gain --summary              Per-command savings breakdown
   gain --unchopped            Commands never compressed (new filter candidates)
+  gain --unchopped --skip X   Mark command X as intentionally not needing a filter
+  gain --unchopped --unskip X Remove command X from the skip list
+  gain --delete X             Permanently delete all tracking records for command X
   config                      Show config file path and contents
   init --global               Install Claude Code hook (~/.claude/settings.json)
   init --uninstall            Remove Claude Code hook

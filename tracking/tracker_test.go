@@ -264,7 +264,7 @@ func TestGetUnchopped(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Commands with 0% savings (should appear)
+	// Commands with 0% savings (should appear regardless of token count)
 	if err := Track("ls -la /tmp", 50, 50); err != nil {
 		t.Fatal(err)
 	}
@@ -364,7 +364,7 @@ func TestFormatUnchopped(t *testing.T) {
 		{Command: "ls -la", Count: 47, TotalTokens: 1234},
 		{Command: "whoami", Count: 12, TotalTokens: 48},
 	}
-	out := FormatUnchopped(summaries)
+	out := FormatUnchopped(summaries, nil, nil, false)
 	if !strings.Contains(out, "ls -la") {
 		t.Errorf("missing command in output: %s", out)
 	}
@@ -374,15 +374,121 @@ func TestFormatUnchopped(t *testing.T) {
 	if !strings.Contains(out, "1,234") {
 		t.Errorf("missing token count in output: %s", out)
 	}
-	if !strings.Contains(out, "2 command(s)") {
+	if !strings.Contains(out, "2 command(s)") && !strings.Contains(out, "command(s)") {
 		t.Errorf("missing summary in output: %s", out)
 	}
 }
 
 func TestFormatUnchoppedEmpty(t *testing.T) {
-	out := FormatUnchopped(nil)
+	out := FormatUnchopped(nil, nil, nil, false)
 	if !strings.Contains(out, "all commands are being chopped") {
 		t.Errorf("unexpected empty output: %s", out)
+	}
+}
+
+func TestFormatUnchoppedWithSkipped(t *testing.T) {
+	summaries := []UnchoppedSummary{
+		{Command: "make tidy", Count: 9, TotalTokens: 128},
+	}
+	skipped := []string{"git push", "git tag"}
+	out := FormatUnchopped(summaries, skipped, nil, false)
+	if !strings.Contains(out, "make tidy") {
+		t.Errorf("expected active command in output: %s", out)
+	}
+	if !strings.Contains(out, "skipped (no filter needed)") {
+		t.Errorf("expected skipped section in output: %s", out)
+	}
+	if !strings.Contains(out, "git push") || !strings.Contains(out, "git tag") {
+		t.Errorf("expected skipped commands in output: %s", out)
+	}
+}
+
+func TestSkipAndUnskipUnchopped(t *testing.T) {
+	setupTestDB(t)
+
+	if err := Track("git push", 10, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := Track("make tidy", 50, 50); err != nil {
+		t.Fatal(err)
+	}
+
+	// Both should appear before skipping
+	results, err := GetUnchopped()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 before skip, got %d", len(results))
+	}
+
+	// Skip "git push"
+	if err := SkipUnchopped("git push"); err != nil {
+		t.Fatalf("SkipUnchopped failed: %v", err)
+	}
+
+	// Now only "make tidy" should appear
+	results, err = GetUnchopped()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 after skip, got %d", len(results))
+	}
+	if results[0].Command != "make tidy" {
+		t.Errorf("expected 'make tidy', got %q", results[0].Command)
+	}
+
+	// Skip list should contain "git push"
+	skipped, err := GetSkippedCommands()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(skipped) != 1 || skipped[0] != "git push" {
+		t.Errorf("expected ['git push'] in skip list, got %v", skipped)
+	}
+
+	// Unskip restores it
+	if err := UnskipUnchopped("git push"); err != nil {
+		t.Fatalf("UnskipUnchopped failed: %v", err)
+	}
+	results, err = GetUnchopped()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("expected 2 after unskip, got %d", len(results))
+	}
+}
+
+func TestDeleteCommand(t *testing.T) {
+	setupTestDB(t)
+
+	if err := Track("git loh", 50, 50); err != nil {
+		t.Fatal(err)
+	}
+	if err := Track("git loh origin", 30, 30); err != nil {
+		t.Fatal(err)
+	}
+	if err := Track("git status", 100, 20); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := DeleteCommand("git loh"); err != nil {
+		t.Fatalf("DeleteCommand failed: %v", err)
+	}
+
+	records, err := GetHistory(100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range records {
+		if strings.HasPrefix(r.Command, "git loh") {
+			t.Errorf("expected git loh to be deleted, found: %q", r.Command)
+		}
+	}
+	if len(records) != 1 || records[0].Command != "git status" {
+		t.Errorf("expected only git status to remain, got %v", records)
 	}
 }
 

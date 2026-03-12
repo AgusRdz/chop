@@ -7,6 +7,15 @@ type FilterFunc func(raw string) (string, error)
 
 // Get returns a filter for the given command, or nil for passthrough.
 func Get(command string, args []string) FilterFunc {
+	return get(command, args)
+}
+
+// HasFilter reports whether a registered filter exists for the given command.
+func HasFilter(command string, args []string) bool {
+	return get(command, args) != nil
+}
+
+func get(command string, args []string) FilterFunc {
 	switch command {
 	case "git":
 		return getGitFilter(args)
@@ -108,24 +117,14 @@ func Get(command string, args []string) FilterFunc {
 		return filterDf
 	case "cat", "tail", "less", "more":
 		return filterAutoDetect
+	case "ls":
+		return filterAutoDetect
 	case "find":
 		return filterAutoDetect
 	case "node", "node16", "node18", "node20", "node22":
 		return filterAutoDetect
 	case "acli":
 		return getAcliFilter(args)
-	default:
-		return nil
-	}
-}
-
-func getAcliFilter(args []string) FilterFunc {
-	if len(args) == 0 {
-		return nil
-	}
-	switch args[0] {
-	case "jira":
-		return filterAutoDetect
 	default:
 		return nil
 	}
@@ -144,6 +143,8 @@ func getDockerFilter(args []string) FilterFunc {
 		return filterDockerImages
 	case "logs":
 		return filterDockerLogs
+	case "rmi":
+		return filterDockerRmi
 	case "inspect":
 		return filterDockerInspect
 	case "stats":
@@ -178,7 +179,9 @@ func getDockerFilter(args []string) FilterFunc {
 
 func getDockerComposeFilter(args []string) FilterFunc {
 	if len(args) == 0 {
-		return nil
+		// No subcommand — return filterAutoDetect so HasFilter recognizes this
+		// command family (docker compose ps/build/logs all have filters).
+		return filterAutoDetect
 	}
 	switch args[0] {
 	case "ps":
@@ -239,6 +242,10 @@ func getGitFilter(args []string) FilterFunc {
 		return filterGitDiff
 	case "branch":
 		return filterGitBranch
+	case "push":
+		return filterGitPush
+	case "remote", "tag", "checkout", "reset":
+		return filterAutoDetect
 	case "stash":
 		if len(args) > 1 && args[1] == "list" {
 			return filterGitLog
@@ -256,8 +263,12 @@ func getNpmFilter(args []string) FilterFunc {
 	switch args[0] {
 	case "install", "i":
 		return filterNpmInstall
+	case "update", "up", "upgrade":
+		return filterNpmInstall
 	case "list", "ls":
 		return filterNpmList
+	case "view", "info", "show":
+		return filterNpmView
 	case "test", "t":
 		return filterNpmTestCmd
 	case "run":
@@ -330,8 +341,15 @@ func getNpxFilter(args []string) FilterFunc {
 		return nil
 	}
 	switch args[0] {
-	case "jest", "vitest", "mocha", "playwright":
+	case "jest", "vitest", "mocha":
 		return filterNpmTestCmd
+	case "nx":
+		return getNxFilter(args[1:])
+	case "playwright":
+		if len(args) == 1 || (len(args) > 1 && args[1] == "test") {
+			return filterPlaywright
+		}
+		return nil
 	case "tsc":
 		return filterTsc
 	case "ng":
@@ -469,7 +487,7 @@ func getAngularFilter(args []string) FilterFunc {
 
 func getNxFilter(args []string) FilterFunc {
 	if len(args) == 0 {
-		return nil
+		return filterAutoDetect
 	}
 	switch args[0] {
 	case "build", "run":

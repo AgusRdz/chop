@@ -31,6 +31,11 @@ conventional_commits = true
 filter_unconventional = false
 split_commits = false
 commit_parsers = [
+    # Skip internal housekeeping commits
+    { message = "^fix: address PR", skip = true },
+    { message = "^fix: resolve merge conflict", skip = true },
+    { message = "^chore: update changelog", skip = true },
+    # Group the rest
     { message = "^feat", group = "Features" },
     { message = "^fix", group = "Bug Fixes" },
     { message = "^docs", group = "Documentation" },

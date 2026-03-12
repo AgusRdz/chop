@@ -189,13 +189,13 @@ Do NOT use chop for: interactive commands, pipes, redirects, or write commands
 (git commit, git push, npm init, docker run).
 ```
 
-## Supported Commands (52+)
+## Supported Commands (60+)
 
 | Category | Commands | Savings |
 |----------|----------|---------|
-| **Git** | `git` status/log/diff/branch, `gh` pr/issue/run | 50-90% |
-| **JavaScript** | `npm` install/list/test, `pnpm`, `yarn`, `bun`, `npx`, `tsc`, `eslint`, `biome` | 70-95% |
-| **Angular/Nx** | `ng` build/test/serve, `nx` build/test | 70-90% |
+| **Git** | `git` status/log/diff/branch/push, `gh` pr/issue/run | 50-90% |
+| **JavaScript** | `npm` install/list/test/view, `pnpm`, `yarn`, `bun`, `npx`, `tsc`, `eslint`, `biome` | 70-95% |
+| **Angular/Nx** | `ng` build/test/serve, `nx` build/test, `npx nx` | 70-90% |
 | **.NET** | `dotnet` build/test | 70-90% |
 | **Rust** | `cargo` test/build/check/clippy | 70-90% |
 | **Go** | `go` test/build/vet | 75-90% |
@@ -203,7 +203,7 @@ Do NOT use chop for: interactive commands, pipes, redirects, or write commands
 | **Java** | `mvn`, `gradle`/`gradlew` | 70-85% |
 | **Ruby** | `bundle`, `rspec`, `rubocop` | 70-90% |
 | **PHP** | `composer` install/update | 70-85% |
-| **Containers** | `docker` ps/build/images/logs/inspect/stats/etc., `docker compose` | 60-85% |
+| **Containers** | `docker` ps/build/images/logs/inspect/stats/rmi/etc., `docker compose` | 60-85% |
 | **Kubernetes** | `kubectl` get/describe/logs/top, `helm` | 60-85% |
 | **Infrastructure** | `terraform` plan/apply/init | 70-90% |
 | **Build** | `make`, `cmake`, `gcc`/`g++`/`clang` | 60-80% |
@@ -211,7 +211,8 @@ Do NOT use chop for: interactive commands, pipes, redirects, or write commands
 | **HTTP** | `curl`, `http` (HTTPie) | 50-80% |
 | **Search** | `grep`, `rg` | 50-70% |
 | **System** | `ping`, `ps`, `ss`/`netstat`, `df`/`du` | 50-80% |
-| **Files/Logs** | `cat`, `tail`, `less`, `more` | 60-95% |
+| **Files/Logs** | `cat`, `tail`, `less`, `more`, `ls`, `find` | 60-95% |
+| **Atlassian** | `acli` jira list/get-issue | 60-80% |
 
 Any command not listed above still gets compressed via auto-detection
 (JSON, CSV, tables, log lines).
@@ -258,6 +259,22 @@ chop - token savings report
   year:  1,203 commands, 456,789 tokens saved
   total: 1,203 commands, 456,789 tokens saved (73.2% avg)
 ```
+
+### Unchopped Report
+
+Identify commands that pass through without compression — potential candidates for new filters:
+
+```bash
+chop gain --unchopped            # show commands with no filter coverage
+chop gain --unchopped --verbose  # untruncated command names + full detail
+chop gain --unchopped --skip X   # mark X as intentionally unfiltered (hides it)
+chop gain --unchopped --unskip X # restore X to the candidates list
+chop gain --delete X             # permanently delete all tracking records for X
+```
+
+The report has two sections:
+- **no filter registered** — output passes through raw; worth writing a filter if AVG tokens is high
+- **filter registered, 0% runs** — filter exists but output was already minimal; no action needed
 
 ## Diagnostics
 

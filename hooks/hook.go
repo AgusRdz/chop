@@ -38,6 +38,60 @@ var pipeRedirectOperators = []string{" | ", ">", "<"}
 // logicalSeparators chain independent commands — split and wrap each segment.
 var logicalSeparators = []string{" && ", " || ", " ; "}
 
+// quoteState tracks parser position relative to shell quoting.
+type quoteState int
+
+const (
+	quoteNone   quoteState = iota
+	quoteSingle            // inside '...'
+	quoteDouble            // inside "..."
+)
+
+// scanQuoteState advances through s character by character, returning the
+// quote state and index of the first occurrence of needle that appears
+// outside of any quoted region. Returns -1 if not found.
+func indexOutsideQuotes(s, needle string) int {
+	state := quoteNone
+	for i := 0; i < len(s); {
+		ch := s[i]
+		switch state {
+		case quoteNone:
+			if ch == '\'' {
+				state = quoteSingle
+				i++
+			} else if ch == '"' {
+				state = quoteDouble
+				i++
+			} else if strings.HasPrefix(s[i:], needle) {
+				return i
+			} else {
+				i++
+			}
+		case quoteSingle:
+			// No escaping inside single quotes — only ' ends it.
+			if ch == '\'' {
+				state = quoteNone
+			}
+			i++
+		case quoteDouble:
+			if ch == '\\' && i+1 < len(s) {
+				i += 2 // skip escaped char
+			} else if ch == '"' {
+				state = quoteNone
+				i++
+			} else {
+				i++
+			}
+		}
+	}
+	return -1
+}
+
+// containsOutsideQuotes reports whether needle appears in s outside quotes.
+func containsOutsideQuotes(s, needle string) bool {
+	return indexOutsideQuotes(s, needle) != -1
+}
+
 // hookInput represents the JSON payload received from Claude Code's PreToolUse hook.
 type hookInput struct {
 	SessionID     string          `json:"session_id"`
@@ -122,14 +176,14 @@ func processHookInput(input []byte) ([]byte, bool, string) {
 
 	// Pipe and redirect operators — can't wrap safely, pass through unchanged.
 	for _, op := range pipeRedirectOperators {
-		if strings.Contains(command, op) {
+		if containsOutsideQuotes(command, op) {
 			return nil, false, command
 		}
 	}
 
 	// Logical chaining operators — split and wrap each supported segment.
 	for _, op := range logicalSeparators {
-		if strings.Contains(command, op) {
+		if containsOutsideQuotes(command, op) {
 			return wrapCompound(command)
 		}
 	}
@@ -164,13 +218,14 @@ func shouldWrap(command string) bool {
 
 // splitLogical splits a command on logical separators (" && ", " || ", " ; "),
 // returning the segments and the operators between them.
+// Only splits on operators that appear outside of quoted strings.
 func splitLogical(command string) (segments []string, operators []string) {
 	rest := command
 	for {
 		earliest := -1
 		earliestOp := ""
 		for _, op := range logicalSeparators {
-			if idx := strings.Index(rest, op); idx != -1 && (earliest == -1 || idx < earliest) {
+			if idx := indexOutsideQuotes(rest, op); idx != -1 && (earliest == -1 || idx < earliest) {
 				earliest = idx
 				earliestOp = op
 			}

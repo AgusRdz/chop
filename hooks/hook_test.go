@@ -161,6 +161,69 @@ func TestCompoundCommandWrapping(t *testing.T) {
 	}
 }
 
+func TestQuotedOperatorsNotSplit(t *testing.T) {
+	// Operators inside quotes must NOT be treated as logical separators.
+	tests := []struct {
+		cmd      string
+		expected string
+	}{
+		// && inside double quotes — single grep, wrapped
+		{`grep "foo && bar" file.txt`, `chop grep "foo && bar" file.txt`},
+		// || inside double quotes — single grep, wrapped
+		{`grep "feat || fix" logs.txt`, `chop grep "feat || fix" logs.txt`},
+		// && inside single quotes — single grep, wrapped
+		{`grep '$1 > 0 && $2 < 100' data.csv`, `chop grep '$1 > 0 && $2 < 100' data.csv`},
+		// || inside --grep= value
+		{`git log --grep="feat || fix" --oneline`, `chop git log --grep="feat || fix" --oneline`},
+		// real && after quoted section — only the real operator splits
+		{`grep "a && b" file.txt && echo done`, `chop grep "a && b" file.txt && echo done`},
+		// escaped quote inside double-quoted string
+		{`grep "say \"hello && bye\"" file.txt`, `chop grep "say \"hello && bye\"" file.txt`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.cmd, func(t *testing.T) {
+			output, shouldModify, _ := processHookInput(makeInput(tt.cmd))
+			if !shouldModify {
+				t.Fatalf("expected command to be modified: %s", tt.cmd)
+			}
+			var result hookOutput
+			if err := json.Unmarshal(output, &result); err != nil {
+				t.Fatalf("failed to parse output JSON: %v", err)
+			}
+			if result.HookSpecificOutput.UpdatedInput.Command != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result.HookSpecificOutput.UpdatedInput.Command)
+			}
+		})
+	}
+}
+
+func TestQuotedRedirectNotSkipped(t *testing.T) {
+	// > and < inside quotes must NOT trigger the redirect passthrough.
+	tests := []struct {
+		cmd      string
+		expected string
+	}{
+		{`grep '$1 > 0' data.csv`, `chop grep '$1 > 0' data.csv`},
+		{`grep "a > b" file.txt`, `chop grep "a > b" file.txt`},
+		{`grep "x < y" file.txt`, `chop grep "x < y" file.txt`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.cmd, func(t *testing.T) {
+			output, shouldModify, _ := processHookInput(makeInput(tt.cmd))
+			if !shouldModify {
+				t.Fatalf("expected command to be modified: %s", tt.cmd)
+			}
+			var result hookOutput
+			if err := json.Unmarshal(output, &result); err != nil {
+				t.Fatalf("failed to parse output JSON: %v", err)
+			}
+			if result.HookSpecificOutput.UpdatedInput.Command != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result.HookSpecificOutput.UpdatedInput.Command)
+			}
+		})
+	}
+}
+
 func TestUnsupportedCommandPassthrough(t *testing.T) {
 	tests := []string{
 		"vim file.txt",

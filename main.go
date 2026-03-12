@@ -990,13 +990,14 @@ func runChangelog(args []string) {
 		return
 	}
 
-	// --latest: show only the current version's section
-	if len(args) > 0 && (args[0] == "--latest" || args[0] == "-l") {
-		fmt.Print(extractLatestVersion(changelog))
+	// --full: show entire history
+	if len(args) > 0 && (args[0] == "--full" || args[0] == "-f") {
+		fmt.Print(changelog)
 		return
 	}
 
-	fmt.Print(changelog)
+	// Default: show only the latest version's section
+	fmt.Print(extractLatestVersion(changelog))
 }
 
 // extractLatestVersion extracts the first version section from the changelog.
@@ -1156,8 +1157,8 @@ Subcommands:
   local remove "git diff"     Re-enable a command in this project
   local clear                 Remove local config
   doctor                      Check and fix common issues (hook path, install location)
-  changelog                   Show full changelog
-  changelog --latest          Show changes in the current version only
+  changelog                   Show changes in the current version
+  changelog --full            Show full changelog history
   update                      Update to the latest version
   --post-update-check         Check install location after an update (called automatically by update)
   help                        Show this help

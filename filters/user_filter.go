@@ -10,6 +10,11 @@ import (
 	"github.com/AgusRdz/chop/config"
 )
 
+// warnf writes a warning to stderr. Used for non-fatal config issues.
+var warnf = func(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, "chop: warning: "+format+"\n", args...)
+}
+
 // BuildUserFilter creates a FilterFunc from a user-defined CustomFilter.
 // Returns nil if the filter definition is empty/invalid.
 func BuildUserFilter(cf *config.CustomFilter) FilterFunc {
@@ -59,7 +64,7 @@ func buildRuleFilter(keep, drop []string, head, tail int) FilterFunc {
 		if len(keepRe) > 0 {
 			var filtered []string
 			for _, line := range lines {
-				// Always keep empty lines between matches for readability
+				// Skip empty lines — they add noise when filtering by pattern
 				if strings.TrimSpace(line) == "" {
 					continue
 				}
@@ -102,15 +107,12 @@ func buildRuleFilter(keep, drop []string, head, tail int) FilterFunc {
 }
 
 // buildExecFilter creates a FilterFunc that pipes output through an external command.
+// The execCmd is passed to "sh -c", so it supports system commands (jq, python3, etc.),
+// scripts with arguments, and shell expressions.
 func buildExecFilter(execCmd string) FilterFunc {
 	return func(raw string) (string, error) {
 		// Expand ~ to home dir
 		expanded := expandHome(execCmd)
-
-		// Check if the script exists
-		if _, err := os.Stat(expanded); err != nil {
-			return raw, fmt.Errorf("filter script not found: %s", expanded)
-		}
 
 		cmd := exec.Command("sh", "-c", expanded)
 		cmd.Stdin = strings.NewReader(raw)
@@ -118,7 +120,7 @@ func buildExecFilter(execCmd string) FilterFunc {
 		out, err := cmd.Output()
 		if err != nil {
 			// On script failure, return raw output rather than losing data
-			return raw, nil
+			return raw, fmt.Errorf("exec filter failed (%s): %w", expanded, err)
 		}
 
 		return string(out), nil
@@ -126,12 +128,13 @@ func buildExecFilter(execCmd string) FilterFunc {
 }
 
 // compilePatterns compiles a list of regex pattern strings.
-// Invalid patterns are silently skipped.
+// Invalid patterns are skipped with a warning to stderr.
 func compilePatterns(patterns []string) []*regexp.Regexp {
 	var compiled []*regexp.Regexp
 	for _, p := range patterns {
 		re, err := regexp.Compile(p)
 		if err != nil {
+			warnf("invalid regex pattern %q: %v", p, err)
 			continue
 		}
 		compiled = append(compiled, re)

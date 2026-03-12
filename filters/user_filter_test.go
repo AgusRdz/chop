@@ -290,3 +290,59 @@ func TestExpandHome(t *testing.T) {
 		t.Errorf("tilde should be expanded, got %q", result)
 	}
 }
+
+// TestGetAndHasFilterWithUserFilters verifies that SetUserFilters wires into
+// Get() and HasFilter() correctly.
+func TestGetAndHasFilterWithUserFilters(t *testing.T) {
+	// Reset global state after test
+	defer SetUserFilters(nil)
+
+	SetUserFilters(map[string]config.CustomFilter{
+		"mytool deploy": {Keep: []string{"ERROR", "WARN"}},
+		"mytool":        {Drop: []string{"DEBUG"}},
+	})
+
+	t.Run("Get returns user filter for subcommand", func(t *testing.T) {
+		fn := Get("mytool", []string{"deploy"})
+		if fn == nil {
+			t.Fatal("expected filter, got nil")
+		}
+		result, err := fn("ERROR bad\nINFO ok\nDEBUG trace")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(result, "ERROR bad") {
+			t.Error("expected ERROR line in output")
+		}
+		if strings.Contains(result, "INFO ok") {
+			t.Error("expected INFO line to be filtered out")
+		}
+	})
+
+	t.Run("Get falls back to base command", func(t *testing.T) {
+		fn := Get("mytool", []string{"status"})
+		if fn == nil {
+			t.Fatal("expected filter, got nil")
+		}
+		result, err := fn("DEBUG noise\nINFO data")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(result, "DEBUG") {
+			t.Error("expected DEBUG line to be dropped")
+		}
+	})
+
+	t.Run("HasFilter true for registered command", func(t *testing.T) {
+		if !HasFilter("mytool", []string{"deploy"}) {
+			t.Error("expected HasFilter true for mytool deploy")
+		}
+	})
+
+	t.Run("HasFilter false for unknown command", func(t *testing.T) {
+		// "unknowntool" has no user filter and no built-in filter
+		if HasFilter("unknowntool", nil) {
+			t.Error("expected HasFilter false for unknown command")
+		}
+	})
+}

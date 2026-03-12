@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	_ "embed"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+
 	"github.com/AgusRdz/chop/cleanup"
 	"github.com/AgusRdz/chop/config"
 	"github.com/AgusRdz/chop/filters"
@@ -18,6 +20,9 @@ import (
 	"github.com/AgusRdz/chop/tracking"
 	"github.com/AgusRdz/chop/updater"
 )
+
+//go:embed CHANGELOG.md
+var changelog string
 
 // version is set at build time via -ldflags "-X main.version=..."
 var version = "dev"
@@ -34,6 +39,9 @@ func main() {
 		return
 	case "--version", "version":
 		fmt.Printf("chop %s\n", version)
+		return
+	case "changelog", "--changelog":
+		runChangelog(os.Args[2:])
 		return
 	case "--post-update-check":
 		checkInstallDir()
@@ -965,6 +973,45 @@ func testFilter(args []string) {
 	fmt.Print(result)
 }
 
+func runChangelog(args []string) {
+	if changelog == "" {
+		fmt.Println("no changelog available")
+		return
+	}
+
+	// --latest: show only the current version's section
+	if len(args) > 0 && (args[0] == "--latest" || args[0] == "-l") {
+		fmt.Print(extractLatestVersion(changelog))
+		return
+	}
+
+	fmt.Print(changelog)
+}
+
+// extractLatestVersion extracts the first version section from the changelog.
+func extractLatestVersion(cl string) string {
+	lines := strings.Split(cl, "\n")
+	var result []string
+	inSection := false
+
+	for _, line := range lines {
+		if strings.HasPrefix(line, "## [") {
+			if inSection {
+				break // hit the next version, stop
+			}
+			inSection = true
+		}
+		if inSection {
+			result = append(result, line)
+		}
+	}
+
+	if len(result) == 0 {
+		return cl
+	}
+	return strings.Join(result, "\n") + "\n"
+}
+
 func checkInstallDir() {
 	exe, err := os.Executable()
 	if err != nil {
@@ -1095,6 +1142,8 @@ Subcommands:
   local remove "git diff"     Re-enable a command in this project
   local clear                 Remove local config
   doctor                      Check and fix common issues (hook path, install location)
+  changelog                   Show full changelog
+  changelog --latest          Show changes in the current version only
   update                      Update to the latest version
   --post-update-check         Check install location after an update (called automatically by update)
   help                        Show this help

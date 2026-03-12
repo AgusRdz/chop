@@ -1,4 +1,4 @@
-.PHONY: build test clean cross install release-patch release-minor release-major
+.PHONY: build test clean cross install changelog release release-patch release-minor release-major
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
@@ -38,29 +38,54 @@ install:
 	cp $(BINARY) "$(INSTALL_DIR)/chop$(EXT)"
 	@echo "installed chop $(VERSION) ($(GOOS)/$(GOARCH)) to $(INSTALL_DIR)/chop$(EXT)"
 
+# --- Changelog ---
+# Requires: git-cliff (https://git-cliff.org)
+changelog:
+	git-cliff --output CHANGELOG.md
+	@echo "updated CHANGELOG.md"
+
 # --- Release helpers ---
-# Usage: make release-patch  (v0.3.0 -> v0.3.1)
-#        make release-minor  (v0.3.0 -> v0.4.0)
-#        make release-major  (v0.3.0 -> v1.0.0)
+# Usage: make release          (auto-detect bump from commits)
+#        make release-patch    (v1.6.0 -> v1.6.1)
+#        make release-minor    (v1.6.0 -> v1.7.0)
+#        make release-major    (v1.6.0 -> v2.0.0)
 CURRENT_TAG := $(shell git describe --tags --abbrev=0 2>/dev/null || echo v0.0.0)
 MAJOR := $(shell echo $(CURRENT_TAG) | sed 's/^v//' | cut -d. -f1)
 MINOR := $(shell echo $(CURRENT_TAG) | sed 's/^v//' | cut -d. -f2)
 PATCH := $(shell echo $(CURRENT_TAG) | sed 's/^v//' | cut -d. -f3)
 
+# Auto-detect release type from conventional commits since last tag
+release:
+	@BUMP=patch; \
+	if git log $$(git describe --tags --abbrev=0)..HEAD --format="%s" | grep -qE '^feat(\(.*\))?!:'; then BUMP=major; \
+	elif git log $$(git describe --tags --abbrev=0)..HEAD --format="%B" | grep -q 'BREAKING CHANGE'; then BUMP=major; \
+	elif git log $$(git describe --tags --abbrev=0)..HEAD --format="%s" | grep -qE '^feat'; then BUMP=minor; fi; \
+	echo "detected: $$BUMP"; \
+	$(MAKE) release-$$BUMP
+
 release-patch:
 	@NEXT=v$(MAJOR).$(MINOR).$(shell echo $$(($(PATCH)+1))); \
 	echo "$(CURRENT_TAG) -> $$NEXT"; \
-	git tag $$NEXT && git push origin $$NEXT && echo "released $$NEXT"
+	git-cliff --tag $$NEXT --output CHANGELOG.md && \
+	git add CHANGELOG.md && \
+	git commit -m "chore: update changelog for $$NEXT" && \
+	git tag $$NEXT && git push origin HEAD $$NEXT && echo "released $$NEXT"
 
 release-minor:
 	@NEXT=v$(MAJOR).$(shell echo $$(($(MINOR)+1))).0; \
 	echo "$(CURRENT_TAG) -> $$NEXT"; \
-	git tag $$NEXT && git push origin $$NEXT && echo "released $$NEXT"
+	git-cliff --tag $$NEXT --output CHANGELOG.md && \
+	git add CHANGELOG.md && \
+	git commit -m "chore: update changelog for $$NEXT" && \
+	git tag $$NEXT && git push origin HEAD $$NEXT && echo "released $$NEXT"
 
 release-major:
 	@NEXT=v$(shell echo $$(($(MAJOR)+1))).0.0; \
 	echo "$(CURRENT_TAG) -> $$NEXT"; \
-	git tag $$NEXT && git push origin $$NEXT && echo "released $$NEXT"
+	git-cliff --tag $$NEXT --output CHANGELOG.md && \
+	git add CHANGELOG.md && \
+	git commit -m "chore: update changelog for $$NEXT" && \
+	git tag $$NEXT && git push origin HEAD $$NEXT && echo "released $$NEXT"
 
 cross:
 	docker compose run --rm dev sh -c "\

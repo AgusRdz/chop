@@ -23,6 +23,9 @@ import (
 var version = "dev"
 
 func main() {
+	// Apply any pending auto-update from a previous run
+	updater.ApplyPendingUpdate(version)
+
 	if len(os.Args) < 2 {
 		printHelp()
 		os.Exit(1)
@@ -162,6 +165,9 @@ func main() {
 
 	fmt.Print(finalOutput)
 	trackSilent(fullCmd, raw, finalOutput)
+
+	// Check for updates in background (every 24h, downloads silently)
+	updater.BackgroundCheck(version)
 
 	os.Exit(exitCode)
 }

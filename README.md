@@ -376,6 +376,72 @@ disabled:
   - "git diff"
 ```
 
+### Custom Filters
+
+Define your own output compression rules for **any** command — no Go code required.
+
+```bash
+chop filter init    # create ~/.config/chop/filters.yml with examples
+chop filter         # list active custom filters
+chop filter path    # show config file location
+```
+
+Edit `~/.config/chop/filters.yml`:
+
+```yaml
+filters:
+  # Keep only error/warning lines from a custom CLI tool
+  "myctl deploy":
+    keep: ["ERROR", "WARN", "deployed", "^="]
+    drop: ["DEBUG", "^\\s*$"]
+
+  # Show first and last lines of ansible output
+  "ansible-playbook":
+    keep: ["^PLAY", "^TASK", "fatal", "changed", "^\\s+ok="]
+    tail: 20
+
+  # Pipe output through a custom script
+  "custom-tool":
+    exec: "~/.config/chop/scripts/custom-tool.sh"
+```
+
+#### Rules
+
+Rules are applied in this order:
+
+| Rule | Description |
+|------|-------------|
+| `drop: [regex...]` | Remove lines matching **any** pattern (applied first) |
+| `keep: [regex...]` | Keep only lines matching **at least one** pattern |
+| `head: N` | Keep first N lines (after drop/keep) |
+| `tail: N` | Keep last N lines (after drop/keep) |
+| `exec: script` | Pipe raw output through an external script (stdin → stdout) |
+
+If both `head` and `tail` are set and the output exceeds `head + tail` lines, a `... (N lines hidden)` separator is shown between them.
+
+`exec` takes priority — when set, all other rules are ignored and the script receives the raw output on stdin.
+
+#### Testing
+
+Test your custom filter without running the actual command:
+
+```bash
+echo "DEBUG init\nINFO started\nERROR failed\nDEBUG cleanup" | chop filter test myctl deploy
+# Output: ERROR failed
+```
+
+#### Local project filters
+
+Create a `.chop-filters.yml` in your project directory for project-specific filters. Local filters are merged on top of global ones (local wins on conflict).
+
+```yaml
+# .chop-filters.yml — project-specific custom filters
+filters:
+  "make build":
+    keep: ["error:", "warning:", "^make\\["]
+    tail: 10
+```
+
 
 ## Development
 

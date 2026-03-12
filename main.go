@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -71,6 +72,9 @@ func main() {
 	case "doctor":
 		runDoctor()
 		return
+	case "filter":
+		runFilter(os.Args[2:])
+		return
 	case "local":
 		runLocal(os.Args[2:])
 		return
@@ -105,6 +109,9 @@ func main() {
 	// Load config: global + local overlay from cwd
 	cwd, _ := os.Getwd()
 	cfg := config.LoadWithLocal(cwd)
+
+	// Load user-defined custom filters
+	filters.SetUserFilters(config.LoadCustomFiltersWithLocal(cwd))
 
 	cmd := exec.Command(command, args...)
 	cmd.Stdin = os.Stdin
@@ -591,6 +598,147 @@ func ensureGitignore() {
 	fmt.Printf("added %s to .gitignore\n", strings.Join(toAdd, ", "))
 }
 
+func runFilter(args []string) {
+	if len(args) == 0 {
+		showFilters()
+		return
+	}
+
+	switch args[0] {
+	case "path":
+		fmt.Println(config.FiltersConfigPath())
+	case "init":
+		initFiltersConfig()
+	case "test":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: chop filter test <command> [subcommand]")
+			os.Exit(1)
+		}
+		testFilter(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "unknown subcommand %q\nusage: chop filter [path|init|test]\n", args[0])
+		os.Exit(1)
+	}
+}
+
+func showFilters() {
+	path := config.FiltersConfigPath()
+	fmt.Printf("config: %s\n\n", path)
+
+	filters := config.LoadCustomFilters()
+	if len(filters) == 0 {
+		fmt.Println("no custom filters defined")
+		fmt.Println("\nrun 'chop filter init' to create a starter config")
+		return
+	}
+
+	for cmd, cf := range filters {
+		fmt.Printf("  %s\n", cmd)
+		if len(cf.Keep) > 0 {
+			fmt.Printf("    keep: %v\n", cf.Keep)
+		}
+		if len(cf.Drop) > 0 {
+			fmt.Printf("    drop: %v\n", cf.Drop)
+		}
+		if cf.Head > 0 {
+			fmt.Printf("    head: %d\n", cf.Head)
+		}
+		if cf.Tail > 0 {
+			fmt.Printf("    tail: %d\n", cf.Tail)
+		}
+		if cf.Exec != "" {
+			fmt.Printf("    exec: %s\n", cf.Exec)
+		}
+	}
+}
+
+func initFiltersConfig() {
+	path := config.FiltersConfigPath()
+
+	// Don't overwrite existing config
+	if _, err := os.Stat(path); err == nil {
+		fmt.Printf("config already exists: %s\n", path)
+		return
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to create config dir: %v\n", err)
+		os.Exit(1)
+	}
+
+	starter := `# Custom chop filters — user-defined output compression rules
+# Docs: https://github.com/AgusRdz/chop#custom-filters
+#
+# Each filter matches a command (or "command subcommand") and applies rules:
+#   keep: [regex...]   — only keep lines matching at least one pattern
+#   drop: [regex...]   — remove lines matching any pattern
+#   head: N            — keep first N lines (after keep/drop)
+#   tail: N            — keep last N lines (after keep/drop)
+#   exec: script       — pipe output through an external script
+#
+# Examples:
+#
+# filters:
+#   "myctl deploy":
+#     keep: ["ERROR", "WARN", "deployed", "^="]
+#     drop: ["DEBUG", "^\\s*$"]
+#
+#   "ansible-playbook":
+#     keep: ["^PLAY", "^TASK", "fatal", "changed", "^\\s+ok="]
+#     tail: 20
+#
+#   "custom-tool":
+#     exec: "~/.config/chop/scripts/custom-tool.sh"
+
+filters: {}
+`
+
+	if err := os.WriteFile(path, []byte(starter), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to write config: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("created: %s\n", path)
+	fmt.Println("edit this file to add your custom filters")
+}
+
+func testFilter(args []string) {
+	command := args[0]
+	subArgs := args[1:]
+
+	cwd, _ := os.Getwd()
+	customFilters := config.LoadCustomFiltersWithLocal(cwd)
+	cf := config.LookupCustomFilter(customFilters, command, subArgs)
+
+	if cf == nil {
+		fmt.Fprintf(os.Stderr, "no custom filter found for %q\n", strings.Join(args, " "))
+		os.Exit(1)
+	}
+
+	fn := filters.BuildUserFilter(cf)
+	if fn == nil {
+		fmt.Fprintf(os.Stderr, "filter definition is empty for %q\n", strings.Join(args, " "))
+		os.Exit(1)
+	}
+
+	// Read stdin
+	input, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to read stdin: %v\n", err)
+		os.Exit(1)
+	}
+
+	result, err := fn(string(input))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "chop: filter error: %v\n", err)
+		fmt.Print(string(input))
+		os.Exit(1)
+	}
+
+	fmt.Print(result)
+}
+
 func checkInstallDir() {
 	exe, err := os.Executable()
 	if err != nil {
@@ -708,6 +856,10 @@ Subcommands:
   uninstall                   Remove everything: hook, data, config, binary
   uninstall --keep-data       Uninstall but preserve tracking history
   reset                       Clear data (tracking, audit log) — keep installation
+  filter                      List custom user-defined filters
+  filter path                 Show filters config file path
+  filter init                 Create a starter filters.yml with examples
+  filter test <cmd>           Test a custom filter (reads stdin)
   local                       Show local project config (.chop.yml)
   local add "git diff"        Disable a command in this project
   local remove "git diff"     Re-enable a command in this project
@@ -729,6 +881,19 @@ Config (%s):
 Local config (.chop.yml in project dir — managed via chop local):
   disabled: ["git diff"]        Overrides global disabled list for this project
 
+Custom filters (%s):
+  Define your own output compression rules for any command.
+  Run 'chop filter init' to create a starter config with examples.
+
+  Rules (applied in order):
+    keep: [regex...]   Only keep lines matching at least one pattern
+    drop: [regex...]   Remove lines matching any pattern
+    head: N            Keep first N lines (after keep/drop)
+    tail: N            Keep last N lines (after keep/drop)
+    exec: script       Pipe output through an external script
+
+  Test with: echo "sample output" | chop filter test <command>
+
 Examples:
   chop git status             Compressed git status
   chop docker ps              Compact container list
@@ -736,5 +901,5 @@ Examples:
   chop curl https://api.io    Auto-compressed JSON response
   chop cat app.log            Pattern-grouped log lines with repeat counts
   chop tail -f app.log        Same, for streaming log files
-`, version, config.Path())
+`, version, config.Path(), config.FiltersConfigPath())
 }

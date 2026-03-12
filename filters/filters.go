@@ -1,17 +1,40 @@
 package filters
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/AgusRdz/chop/config"
+)
 
 // FilterFunc takes raw command output and returns filtered output.
 type FilterFunc func(raw string) (string, error)
 
+// userFilters holds user-defined custom filters loaded at startup.
+var userFilters map[string]config.CustomFilter
+
+// SetUserFilters registers user-defined custom filters for lookup.
+// Call once at startup with the result of config.LoadCustomFiltersWithLocal.
+func SetUserFilters(filters map[string]config.CustomFilter) {
+	userFilters = filters
+}
+
 // Get returns a filter for the given command, or nil for passthrough.
+// Checks user-defined custom filters first, then falls back to built-ins.
 func Get(command string, args []string) FilterFunc {
+	// User-defined filters take priority
+	if cf := config.LookupCustomFilter(userFilters, command, args); cf != nil {
+		if fn := BuildUserFilter(cf); fn != nil {
+			return fn
+		}
+	}
 	return get(command, args)
 }
 
 // HasFilter reports whether a registered filter exists for the given command.
 func HasFilter(command string, args []string) bool {
+	if config.LookupCustomFilter(userFilters, command, args) != nil {
+		return true
+	}
 	return get(command, args) != nil
 }
 

@@ -41,10 +41,23 @@ jobs:
           CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o bin/chop-darwin-arm64 .
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o bin/chop-windows-amd64.exe .
 
+      - name: Extract release notes
+        id: changelog
+        run: |
+          VERSION=${{ github.ref_name }}
+          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          if [ -z "$NOTES" ]; then
+            echo "ERROR: no CHANGELOG entry found for ${VERSION}"
+            exit 1
+          fi
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body: ${{ steps.changelog.outputs.notes }}
           files: |
             bin/chop-linux-amd64
             bin/chop-linux-arm64

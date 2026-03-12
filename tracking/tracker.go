@@ -371,14 +371,14 @@ func FormatUnchopped(summaries []UnchoppedSummary, skipped []string, filtered []
 	}
 	var b strings.Builder
 	if len(summaries) > 0 {
-		b.WriteString("no filter registered — output passes through raw (write a filter to compress):\n\n")
+		b.WriteString("no filter registered - output passes through raw (write a filter to compress):\n\n")
 		writeUnchoppedTable(&b, summaries, verbose)
-		b.WriteString(fmt.Sprintf("\n  %d command(s) — focus on high AVG first\n", len(summaries)))
+		b.WriteString(fmt.Sprintf("\n  %d command(s) - focus on high AVG first\n", len(summaries)))
 	} else {
 		b.WriteString("no unfiltered candidates (all commands compress or are skipped)\n")
 	}
 	if len(filtered) > 0 {
-		b.WriteString("\nfilter registered — 0% runs happen when output is already minimal (no action needed):\n\n")
+		b.WriteString("\nfilter registered - 0% runs happen when output is already minimal (no action needed):\n\n")
 		writeUnchoppedTable(&b, filtered, verbose)
 		b.WriteString("\n")
 	}

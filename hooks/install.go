@@ -285,7 +285,7 @@ func installWithCommand(settingsPath string, hookCmd string) error {
 			return fmt.Errorf("Bash matcher hooks is not an array")
 		}
 
-		// Check if chop hook already exists — update it
+		// Check if chop hook already exists - update it
 		chopIdx := -1
 		for i, h := range hooksArray {
 			hMap, ok := h.(map[string]interface{})

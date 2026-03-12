@@ -14,7 +14,7 @@ func filterDockerSystemDf(raw string) (string, error) {
 	raw = trimmed
 	lines := strings.Split(raw, "\n")
 
-	// docker system df is already compact — just strip empty lines and reformat
+	// docker system df is already compact - just strip empty lines and reformat
 	var out []string
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {

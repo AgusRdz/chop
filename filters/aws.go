@@ -41,7 +41,7 @@ func filterAwsGeneric(raw string) (string, error) {
 	}
 	compressed, err := compressJSON(raw)
 	if err != nil {
-		// Not JSON — return as-is
+		// Not JSON - return as-is
 		return raw, nil
 	}
 	return compressed, nil
@@ -118,12 +118,12 @@ func filterAwsS3Ls(raw string) (string, error) {
 	sort.Strings(prefixOrder)
 	for _, prefix := range prefixOrder {
 		s := prefixes[prefix]
-		out = append(out, fmt.Sprintf("%s/ — %d files, %s", prefix, s.count, humanSize(s.totalSize)))
+		out = append(out, fmt.Sprintf("%s/ - %d files, %s", prefix, s.count, humanSize(s.totalSize)))
 	}
 	// Files at root level (prefix ".")
 	if s, ok := prefixes["."]; ok {
 		// Already included above, but rename label
-		out[len(out)-1] = fmt.Sprintf("(root) — %d files, %s", s.count, humanSize(s.totalSize))
+		out[len(out)-1] = fmt.Sprintf("(root) - %d files, %s", s.count, humanSize(s.totalSize))
 	}
 
 	return strings.Join(out, "\n"), nil
@@ -234,7 +234,7 @@ func filterAwsLogs(raw string) (string, error) {
 		return compressJSON(raw)
 	}
 
-	// Text output — deduplicate lines
+	// Text output - deduplicate lines
 	return deduplicateLines(raw), nil
 }
 

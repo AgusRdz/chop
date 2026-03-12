@@ -36,7 +36,7 @@ func filterPlaywright(raw string) (string, error) {
 			continue
 		}
 
-		// Fail: ✗ or ✘ (× is a retry attempt — skip, don't count)
+		// Fail: ✗ or ✘ (× is a retry attempt - skip, don't count)
 		if rePlaywrightFailLine.MatchString(line) {
 			failed++
 			inFailure = false

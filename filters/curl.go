@@ -130,7 +130,7 @@ func extractHTTPBody(raw string) (body string, statusLine string) {
 		}
 	}
 
-	// No blank line separator found — might be headers only
+	// No blank line separator found - might be headers only
 	lines := strings.SplitN(raw, "\n", 2)
 	return raw, strings.TrimSpace(lines[0])
 }

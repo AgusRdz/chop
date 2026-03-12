@@ -206,7 +206,7 @@ func filterMavenTest(raw string) (string, error) {
 			continue
 		}
 
-		// Test summary line — skip per-class summaries (contain " -- in ClassName")
+		// Test summary line - skip per-class summaries (contain " -- in ClassName")
 		if m := reMvnTestSummary.FindStringSubmatch(trimmed); m != nil {
 			if !reMvnTestPerClass.MatchString(trimmed) {
 				totalRun = atoi(m[1])

@@ -22,7 +22,7 @@ func BuildUserFilter(cf *config.CustomFilter) FilterFunc {
 		return nil
 	}
 
-	// Exec-based filter takes priority — it's a full pipeline replacement
+	// Exec-based filter takes priority - it's a full pipeline replacement
 	if cf.Exec != "" {
 		return buildExecFilter(cf.Exec)
 	}
@@ -64,7 +64,7 @@ func buildRuleFilter(keep, drop []string, head, tail int) FilterFunc {
 		if len(keepRe) > 0 {
 			var filtered []string
 			for _, line := range lines {
-				// Skip empty lines — they add noise when filtering by pattern
+				// Skip empty lines - they add noise when filtering by pattern
 				if strings.TrimSpace(line) == "" {
 					continue
 				}

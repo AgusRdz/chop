@@ -19,7 +19,7 @@ var (
 	reDotnetTestSkippedCount = regexp.MustCompile(`(?i)^\s*Skipped:\s*(\d+)`)
 	// Failed test name: "  Failed MethodName [time]"
 	reDotnetFailedTest = regexp.MustCompile(`^\s*Failed\s+(\S.+?)(?:\s*\[\d+\s*ms\])?\s*$`)
-	// Passing test line: "Passed  TestName [time]" — to skip
+	// Passing test line: "Passed  TestName [time]" - to skip
 	reDotnetPassedTest = regexp.MustCompile(`(?i)^\s*Passed\s+\S`)
 	// Noise lines to skip
 	reDotnetTestNoise = regexp.MustCompile(`(?i)(^Microsoft \(R\)|^Copyright \(C\)|^\s*Starting test execution|^\s*Restore complete|^\s*Determining projects|^\s*Build started|^\s*NuGet |^\s*A total of|^Test run for|^\s*Results File|^\s*Attachments?:|^  Duration:)`)
@@ -131,7 +131,7 @@ func filterDotnetTestCmd(raw string) (string, error) {
 		total = passed + failed + skipped
 	}
 
-	// All passed — ultra compact
+	// All passed - ultra compact
 	if failed == 0 && total > 0 {
 		return fmt.Sprintf("all %d tests passed", total), nil
 	}

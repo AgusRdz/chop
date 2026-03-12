@@ -135,7 +135,7 @@ func filterKubectlDescribe(raw string) (string, error) {
 			if isTopLevel {
 				skipSubKey = false
 			} else if indent <= 4 && strings.Contains(trimmed, ":") {
-				// New sub-key at container level — stop skipping
+				// New sub-key at container level - stop skipping
 				skipSubKey = false
 				// Check if this new sub-key should also be skipped
 				for _, sk := range describeStripKeys {

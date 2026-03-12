@@ -122,7 +122,7 @@ func filterNpmTestCmd(raw string) (string, error) {
 		}
 	}
 
-	// All passed — ultra compact
+	// All passed - ultra compact
 	total := totalPassed + totalFailed + totalSkipped
 	if totalFailed == 0 && total > 0 {
 		return fmt.Sprintf("all %d tests passed", total), nil

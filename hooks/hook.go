@@ -114,7 +114,7 @@ func processHookInput(input []byte) ([]byte, bool, string) {
 		}
 	}
 
-	// Compound commands — check for shell operators
+	// Compound commands - check for shell operators
 	for _, op := range compoundOperators {
 		if strings.Contains(command, op) {
 			return nil, false, command
@@ -155,7 +155,7 @@ func processHookInput(input []byte) ([]byte, bool, string) {
 }
 
 // auditLog appends a rewrite entry to the hook audit log.
-// Silent on all errors — never slows down or breaks the hook.
+// Silent on all errors - never slows down or breaks the hook.
 func auditLog(original, rewritten string) {
 	home, err := os.UserHomeDir()
 	if err != nil {

@@ -10,8 +10,8 @@ import (
 
 // CustomFilter defines a user-configured output filter for a specific command.
 type CustomFilter struct {
-	Keep []string `yaml:"keep"` // regex patterns — only lines matching at least one are kept
-	Drop []string `yaml:"drop"` // regex patterns — lines matching any are removed
+	Keep []string `yaml:"keep"` // regex patterns - only lines matching at least one are kept
+	Drop []string `yaml:"drop"` // regex patterns - lines matching any are removed
 	Head int      `yaml:"head"` // keep only first N lines (applied after keep/drop)
 	Tail int      `yaml:"tail"` // keep only last N lines (applied after keep/drop)
 	Exec string   `yaml:"exec"` // external script: pipe output through this command

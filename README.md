@@ -283,6 +283,7 @@ chop doctor            # check and fix common issues
 chop hook-audit        # show last 20 hook rewrite log entries
 chop hook-audit --clear
 chop config            # show global config file path and contents
+chop config init       # create a starter global config.yml
 chop local             # show local project config
 ```
 
@@ -340,10 +341,15 @@ chop reset                    # clear tracking data and audit log, keep installa
 
 ### Global config
 
+```bash
+chop config            # show current global config
+chop config init       # create ~/.config/chop/config.yml with examples
+```
+
 `~/.config/chop/config.yml`:
 
 ```yaml
-# Skip filtering — return full uncompressed output
+# Skip filtering - return full uncompressed output
 disabled:
   - curl                # disables all curl commands
   - "git diff"          # disables only git diff (git status still compressed)
@@ -378,32 +384,58 @@ disabled:
 
 ### Custom Filters
 
-Define your own output compression rules for **any** command — no Go code required.
+Define your own output compression rules for **any** command - no Go code required.
+
+#### Managing filters
 
 ```bash
-chop filter init    # create ~/.config/chop/filters.yml with examples
-chop filter         # list active custom filters
-chop filter path    # show config file location
+# Global filters (~/.config/chop/filters.yml)
+chop filter init                         # create starter global filters file
+chop filter add <cmd> [flags]            # add or update a filter
+chop filter remove <cmd>                 # remove a filter
+chop filter                              # list all active filters
+chop filter path                         # show config file location
+
+# Project filters (.chop-filters.yml in current directory)
+chop filter init --local                 # create starter local filters file
+chop filter add <cmd> [flags] --local    # add or update a project-level filter
+chop filter remove <cmd> --local         # remove a project-level filter
 ```
 
-Edit `~/.config/chop/filters.yml`:
+Local filters are merged on top of global ones - **local always wins on conflict**.
 
-```yaml
-filters:
-  # Keep only error/warning lines from a custom CLI tool
-  "myctl deploy":
-    keep: ["ERROR", "WARN", "deployed", "^="]
-    drop: ["DEBUG", "^\\s*$"]
+#### Adding filters from the CLI
 
-  # Show first and last lines of ansible output
-  "ansible-playbook":
-    keep: ["^PLAY", "^TASK", "fatal", "changed", "^\\s+ok="]
-    tail: 20
+Use `chop filter add` with one or more rule flags:
 
-  # Pipe output through a custom script
-  "custom-tool":
-    exec: "~/.config/chop/scripts/custom-tool.sh"
+```bash
+chop filter add "myctl deploy" --keep "ERROR,WARN,deployed,^=" --drop "DEBUG,^\s*$"
+chop filter add "ansible-playbook" --keep "^PLAY,^TASK,fatal,changed,^\s+ok=" --tail 20
+chop filter add "custom-tool" --exec "~/.config/chop/scripts/custom-tool.sh"
+chop filter add "make build" --keep "error:,warning:,^make\[" --tail 10 --local
 ```
+
+Available flags:
+
+| Flag | Description |
+|------|-------------|
+| `--keep "p1,p2"` | Comma-separated regex patterns - only keep matching lines |
+| `--drop "p1,p2"` | Comma-separated regex patterns - remove matching lines |
+| `--head N` | Keep first N lines (after drop/keep) |
+| `--tail N` | Keep last N lines (after drop/keep) |
+| `--exec script` | Pipe output through an external script or command |
+| `--local` | Write to `.chop-filters.yml` in the current directory |
+
+> **Important - no manual escaping needed:** pass regex patterns as-is. chop handles
+> escaping when writing the YAML file. Use `\s` for whitespace, `\d` for digits, etc.
+>
+> ```bash
+> # Correct
+> chop filter add "mytool" --drop "^\s*$"
+>
+> # Wrong - double-escaping produces the wrong regex
+> chop filter add "mytool" --drop "^\\s*$"
+> ```
 
 #### Rules
 
@@ -411,35 +443,47 @@ Rules are applied in this order:
 
 | Rule | Description |
 |------|-------------|
-| `drop: [regex...]` | Remove lines matching **any** pattern (applied first) |
-| `keep: [regex...]` | Keep only lines matching **at least one** pattern |
+| `drop` | Remove lines matching **any** pattern (applied first) |
+| `keep` | Keep only lines matching **at least one** pattern |
 | `head: N` | Keep first N lines (after drop/keep) |
 | `tail: N` | Keep last N lines (after drop/keep) |
-| `exec: script` | Pipe raw output through an external script (stdin → stdout) |
+| `exec` | Pipe raw output through an external script (stdin - stdout) |
 
 If both `head` and `tail` are set and the output exceeds `head + tail` lines, a `... (N lines hidden)` separator is shown between them.
 
-`exec` takes priority — when set, all other rules are ignored and the script receives the raw output on stdin.
+`exec` takes priority - when set, all other rules are ignored and the script receives the raw output on stdin. Supports any command available in your shell (e.g. `jq .`, `python3 filter.py`).
 
-#### Testing
+#### Editing the file manually
 
-Test your custom filter without running the actual command:
-
-```bash
-echo "DEBUG init\nINFO started\nERROR failed\nDEBUG cleanup" | chop filter test myctl deploy
-# Output: ERROR failed
-```
-
-#### Local project filters
-
-Create a `.chop-filters.yml` in your project directory for project-specific filters. Local filters are merged on top of global ones (local wins on conflict).
+You can also edit the YAML files directly. Note that backslashes **must** be escaped in YAML double-quoted strings (`\\s` in the file = `\s` in the regex). This escaping is handled automatically when using `chop filter add`.
 
 ```yaml
-# .chop-filters.yml — project-specific custom filters
 filters:
-  "make build":
-    keep: ["error:", "warning:", "^make\\["]
-    tail: 10
+  # Keep only error/warning lines from a custom CLI tool
+  "myctl deploy":
+    keep: ["ERROR", "WARN", "deployed", "^="]
+    drop: ["DEBUG", "^\\s*$"]      # \\s in YAML = \s in the regex
+
+  # Show first and last lines of ansible output
+  "ansible-playbook":
+    keep: ["^PLAY", "^TASK", "fatal", "changed", "^\\s+ok="]
+    tail: 20
+
+  # Pipe output through any shell command
+  "custom-tool":
+    exec: "jq ."
+```
+
+#### Testing filters
+
+Test a filter against sample input without running the actual command:
+
+```bash
+# Linux/macOS
+echo -e "DEBUG init\nINFO started\nERROR failed" | chop filter test myctl deploy
+
+# Windows (PowerShell)
+"DEBUG init`nINFO started`nERROR failed" | chop filter test myctl deploy
 ```
 
 

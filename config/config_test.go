@@ -112,12 +112,12 @@ func TestIsDisabled_Subcommand(t *testing.T) {
 		t.Error("expected 'docker ps' to be disabled")
 	}
 
-	// Different subcommand — not disabled
+	// Different subcommand - not disabled
 	if cfg.IsDisabled("git", "status") {
 		t.Error("expected 'git status' to NOT be disabled")
 	}
 
-	// Base command alone — not disabled (only subcommand-level entries)
+	// Base command alone - not disabled (only subcommand-level entries)
 	if cfg.IsDisabled("git") {
 		t.Error("expected bare 'git' to NOT be disabled when only 'git diff' is listed")
 	}

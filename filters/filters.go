@@ -202,7 +202,7 @@ func getDockerFilter(args []string) FilterFunc {
 
 func getDockerComposeFilter(args []string) FilterFunc {
 	if len(args) == 0 {
-		// No subcommand — return filterAutoDetect so HasFilter recognizes this
+		// No subcommand - return filterAutoDetect so HasFilter recognizes this
 		// command family (docker compose ps/build/logs all have filters).
 		return filterAutoDetect
 	}

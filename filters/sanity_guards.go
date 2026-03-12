@@ -4,7 +4,7 @@ import "strings"
 
 // Format recognition functions for graceful fallback.
 // Each returns true if the input looks like it could be output from the expected command.
-// Uses simple string checks (Contains, HasPrefix) — no regex for speed.
+// Uses simple string checks (Contains, HasPrefix) - no regex for speed.
 
 func looksLikeGitStatusOutput(s string) bool {
 	return strings.Contains(s, "On branch") ||
@@ -182,7 +182,7 @@ func looksLikeKubectlDescribeOutput(s string) bool {
 }
 
 func looksLikeKubectlLogsOutput(_ string) bool {
-	// Logs can be anything — always attempt to filter
+	// Logs can be anything - always attempt to filter
 	return true
 }
 
@@ -252,12 +252,12 @@ func looksLikeTerraformInitOutput(s string) bool {
 }
 
 func looksLikeCurlOutput(_ string) bool {
-	// curl output can be anything (JSON, HTML, text, headers) — always attempt
+	// curl output can be anything (JSON, HTML, text, headers) - always attempt
 	return true
 }
 
 func looksLikeHttpieOutput(_ string) bool {
-	// httpie output can be anything — always attempt
+	// httpie output can be anything - always attempt
 	return true
 }
 
@@ -359,7 +359,7 @@ func looksLikeGhRunOutput(s string) bool {
 }
 
 func looksLikeGrepOutput(s string) bool {
-	// grep output is either file:line:content or plain text — always process
+	// grep output is either file:line:content or plain text - always process
 	return true
 }
 

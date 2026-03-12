@@ -129,7 +129,7 @@ func filterCargoClippy(raw string) (string, error) {
 			continue
 		}
 
-		// Help/note lines — extract lint name if present
+		// Help/note lines - extract lint name if present
 		if reClippyHelpNote.MatchString(trimmed) {
 			if current != nil {
 				if m := reClippyLintName.FindStringSubmatch(trimmed); m != nil {

@@ -177,7 +177,7 @@ func TestCompressLogPatterns_NoRepeats(t *testing.T) {
 			t.Errorf("if patterns matched, output should not be larger than input")
 		}
 	}
-	// Either way is fine — it should not crash
+	// Either way is fine - it should not crash
 }
 
 func TestCompressLogPatterns_MixedPatterns(t *testing.T) {

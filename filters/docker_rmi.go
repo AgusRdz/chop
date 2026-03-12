@@ -18,7 +18,7 @@ func filterDockerRmi(raw string) (string, error) {
 		if t == "" {
 			continue
 		}
-		// Skip "Deleted: sha256:..." — internal layer IDs, no value to the user
+		// Skip "Deleted: sha256:..." - internal layer IDs, no value to the user
 		if strings.HasPrefix(t, "Deleted: sha256:") {
 			continue
 		}

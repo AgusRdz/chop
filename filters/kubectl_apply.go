@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// No regex needed — using strings operations
+// No regex needed - using strings operations
 
 func filterKubectlApply(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)

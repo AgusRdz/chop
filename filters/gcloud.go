@@ -38,7 +38,7 @@ func filterGcloudGeneric(raw string) (string, error) {
 		}
 	}
 
-	// Table output — truncate rows
+	// Table output - truncate rows
 	return filterGcloudTable(raw), nil
 }
 

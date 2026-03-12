@@ -8,14 +8,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
-
 	"github.com/AgusRdz/chop/cleanup"
 	"github.com/AgusRdz/chop/config"
 	"github.com/AgusRdz/chop/filters"
 	"github.com/AgusRdz/chop/hooks"
-
 	"github.com/AgusRdz/chop/tracking"
 	"github.com/AgusRdz/chop/updater"
 )
@@ -49,7 +48,7 @@ func main() {
 		runCapture(os.Args[2:])
 		return
 	case "config":
-		runConfig()
+		runConfig(os.Args[2:])
 		return
 	case "hook":
 		hooks.RunHook()
@@ -246,7 +245,12 @@ func runCapture(args []string) {
 	os.Exit(exitCode)
 }
 
-func runConfig() {
+func runConfig(args []string) {
+	if len(args) > 0 && args[0] == "init" {
+		initConfig()
+		return
+	}
+
 	path := config.Path()
 	fmt.Printf("config: %s\n", path)
 
@@ -254,6 +258,7 @@ func runConfig() {
 	if err != nil {
 		if os.IsNotExist(err) {
 			fmt.Println("(no config file found)")
+			fmt.Println("\nrun 'chop config init' to create a starter config")
 		} else {
 			fmt.Fprintf(os.Stderr, "chop: failed to read config: %v\n", err)
 		}
@@ -266,6 +271,40 @@ func runConfig() {
 	} else {
 		fmt.Println(content)
 	}
+}
+
+func initConfig() {
+	path := config.Path()
+
+	if _, err := os.Stat(path); err == nil {
+		fmt.Printf("config already exists: %s\n", path)
+		return
+	}
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to create config dir: %v\n", err)
+		os.Exit(1)
+	}
+
+	starter := `# Global chop config
+# Docs: https://github.com/AgusRdz/chop#configuration
+#
+# Disable built-in filters for specific commands globally.
+# Use "chop local add" to disable per-project instead.
+#
+# disabled: ["git diff", "docker ps"]
+
+disabled: []
+`
+
+	if err := os.WriteFile(path, []byte(starter), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to write config: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("created: %s\n", path)
+	fmt.Println("edit this file to disable built-in filters globally")
 }
 
 func runGain(args []string) {
@@ -329,7 +368,7 @@ func runGain(args []string) {
 			fmt.Fprintf(os.Stderr, "chop: failed to read unchopped: %v\n", err)
 			os.Exit(1)
 		}
-		// Auto-exclude commands that already have a registered filter —
+		// Auto-exclude commands that already have a registered filter -
 		// they're just not compressing for this specific invocation (stale data).
 		var candidates, filteredCmds []tracking.UnchoppedSummary
 		for _, s := range summaries {
@@ -580,7 +619,7 @@ func ensureGitignore() {
 
 	f, err := os.OpenFile(gitignorePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return // silent — don't break the command for .gitignore issues
+		return // silent - don't break the command for .gitignore issues
 	}
 	defer f.Close()
 
@@ -608,7 +647,20 @@ func runFilter(args []string) {
 	case "path":
 		fmt.Println(config.FiltersConfigPath())
 	case "init":
-		initFiltersConfig()
+		local := len(args) > 1 && args[1] == "--local"
+		initFiltersConfig(local)
+	case "add":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: chop filter add <command> [--keep p1,p2] [--drop p1,p2] [--head N] [--tail N] [--exec script] [--local]")
+			os.Exit(1)
+		}
+		filterAdd(args[1:])
+	case "remove":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: chop filter remove <command> [--local]")
+			os.Exit(1)
+		}
+		filterRemove(args[1:])
 	case "test":
 		if len(args) < 2 {
 			fmt.Fprintln(os.Stderr, "usage: chop filter test <command> [subcommand]")
@@ -616,7 +668,7 @@ func runFilter(args []string) {
 		}
 		testFilter(args[1:])
 	default:
-		fmt.Fprintf(os.Stderr, "unknown subcommand %q\nusage: chop filter [path|init|test]\n", args[0])
+		fmt.Fprintf(os.Stderr, "unknown subcommand %q\nusage: chop filter [path|init|add|remove|test]\n", args[0])
 		os.Exit(1)
 	}
 }
@@ -628,7 +680,8 @@ func showFilters() {
 	filters := config.LoadCustomFilters()
 	if len(filters) == 0 {
 		fmt.Println("no custom filters defined")
-		fmt.Println("\nrun 'chop filter init' to create a starter config")
+		fmt.Println("\nrun 'chop filter init' to create a global config")
+		fmt.Println("run 'chop filter init --local' to create a project-level config")
 		return
 	}
 
@@ -652,8 +705,14 @@ func showFilters() {
 	}
 }
 
-func initFiltersConfig() {
-	path := config.FiltersConfigPath()
+func initFiltersConfig(local bool) {
+	var path string
+	if local {
+		cwd, _ := os.Getwd()
+		path = filepath.Join(cwd, ".chop-filters.yml")
+	} else {
+		path = config.FiltersConfigPath()
+	}
 
 	// Don't overwrite existing config
 	if _, err := os.Stat(path); err == nil {
@@ -661,21 +720,23 @@ func initFiltersConfig() {
 		return
 	}
 
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		fmt.Fprintf(os.Stderr, "chop: failed to create config dir: %v\n", err)
-		os.Exit(1)
+	if !local {
+		dir := filepath.Dir(path)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to create config dir: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
-	starter := `# Custom chop filters — user-defined output compression rules
+	starter := `# Custom chop filters - user-defined output compression rules
 # Docs: https://github.com/AgusRdz/chop#custom-filters
 #
 # Each filter matches a command (or "command subcommand") and applies rules:
-#   keep: [regex...]   — only keep lines matching at least one pattern
-#   drop: [regex...]   — remove lines matching any pattern
-#   head: N            — keep first N lines (after keep/drop)
-#   tail: N            — keep last N lines (after keep/drop)
-#   exec: script       — pipe output through an external script
+#   keep: [regex...]   - only keep lines matching at least one pattern
+#   drop: [regex...]   - remove lines matching any pattern
+#   head: N            - keep first N lines (after keep/drop)
+#   tail: N            - keep last N lines (after keep/drop)
+#   exec: script       - pipe output through an external script
 #
 # Examples:
 #
@@ -701,6 +762,171 @@ filters: {}
 
 	fmt.Printf("created: %s\n", path)
 	fmt.Println("edit this file to add your custom filters")
+}
+
+// filterConfigPath returns the target filters file path based on the --local flag.
+func filterConfigPath(local bool) string {
+	if local {
+		cwd, _ := os.Getwd()
+		return filepath.Join(cwd, ".chop-filters.yml")
+	}
+	return config.FiltersConfigPath()
+}
+
+// writeFilters writes the filters map to path in a clean, human-readable YAML format.
+// Uses inline arrays and omits zero/empty fields.
+func writeFilters(path string, filters map[string]config.CustomFilter) {
+	var sb strings.Builder
+	sb.WriteString("filters:\n")
+
+	// Sort keys for stable output
+	keys := make([]string, 0, len(filters))
+	for k := range filters {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, cmd := range keys {
+		cf := filters[cmd]
+		sb.WriteString(fmt.Sprintf("  %q:\n", cmd))
+		if len(cf.Keep) > 0 {
+			sb.WriteString(fmt.Sprintf("    keep: %s\n", inlineStringSlice(cf.Keep)))
+		}
+		if len(cf.Drop) > 0 {
+			sb.WriteString(fmt.Sprintf("    drop: %s\n", inlineStringSlice(cf.Drop)))
+		}
+		if cf.Head > 0 {
+			sb.WriteString(fmt.Sprintf("    head: %d\n", cf.Head))
+		}
+		if cf.Tail > 0 {
+			sb.WriteString(fmt.Sprintf("    tail: %d\n", cf.Tail))
+		}
+		if cf.Exec != "" {
+			sb.WriteString(fmt.Sprintf("    exec: %q\n", cf.Exec))
+		}
+	}
+
+	if err := os.WriteFile(path, []byte(sb.String()), 0o644); err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to write %s: %v\n", path, err)
+		os.Exit(1)
+	}
+}
+
+// inlineStringSlice formats a string slice as a YAML inline array: ["a", "b", "c"]
+func inlineStringSlice(s []string) string {
+	quoted := make([]string, len(s))
+	for i, v := range s {
+		quoted[i] = fmt.Sprintf("%q", v)
+	}
+	return "[" + strings.Join(quoted, ", ") + "]"
+}
+
+func filterAdd(args []string) {
+	// First arg is the command name; rest are flags
+	cmdName := args[0]
+	rest := args[1:]
+
+	var keep, drop []string
+	var head, tail int
+	var exec string
+	local := false
+
+	for i := 0; i < len(rest); i++ {
+		switch rest[i] {
+		case "--keep":
+			if i+1 >= len(rest) {
+				fmt.Fprintln(os.Stderr, "chop: --keep requires a value")
+				os.Exit(1)
+			}
+			i++
+			keep = strings.Split(rest[i], ",")
+		case "--drop":
+			if i+1 >= len(rest) {
+				fmt.Fprintln(os.Stderr, "chop: --drop requires a value")
+				os.Exit(1)
+			}
+			i++
+			drop = strings.Split(rest[i], ",")
+		case "--head":
+			if i+1 >= len(rest) {
+				fmt.Fprintln(os.Stderr, "chop: --head requires a value")
+				os.Exit(1)
+			}
+			i++
+			fmt.Sscanf(rest[i], "%d", &head)
+		case "--tail":
+			if i+1 >= len(rest) {
+				fmt.Fprintln(os.Stderr, "chop: --tail requires a value")
+				os.Exit(1)
+			}
+			i++
+			fmt.Sscanf(rest[i], "%d", &tail)
+		case "--exec":
+			if i+1 >= len(rest) {
+				fmt.Fprintln(os.Stderr, "chop: --exec requires a value")
+				os.Exit(1)
+			}
+			i++
+			exec = rest[i]
+		case "--local":
+			local = true
+		default:
+			fmt.Fprintf(os.Stderr, "chop: unknown flag %q\n", rest[i])
+			os.Exit(1)
+		}
+	}
+
+	if len(keep) == 0 && len(drop) == 0 && head == 0 && tail == 0 && exec == "" {
+		fmt.Fprintln(os.Stderr, "chop: filter add requires at least one rule (--keep, --drop, --head, --tail, --exec)")
+		os.Exit(1)
+	}
+
+	path := filterConfigPath(local)
+
+	if !local {
+		dir := filepath.Dir(path)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to create config dir: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	existing := config.LoadCustomFiltersFrom(path)
+	if existing == nil {
+		existing = make(map[string]config.CustomFilter)
+	}
+
+	existing[cmdName] = config.CustomFilter{
+		Keep: keep,
+		Drop: drop,
+		Head: head,
+		Tail: tail,
+		Exec: exec,
+	}
+
+	writeFilters(path, existing)
+	fmt.Printf("filter added: %s (%s)\n", cmdName, path)
+}
+
+func filterRemove(args []string) {
+	cmdName := args[0]
+	local := len(args) > 1 && args[1] == "--local"
+
+	path := filterConfigPath(local)
+	existing := config.LoadCustomFiltersFrom(path)
+	if existing == nil {
+		fmt.Fprintf(os.Stderr, "no filters found in %s\n", path)
+		os.Exit(1)
+	}
+
+	if _, ok := existing[cmdName]; !ok {
+		fmt.Fprintf(os.Stderr, "filter not found: %s\n", cmdName)
+		os.Exit(1)
+	}
+
+	delete(existing, cmdName)
+	writeFilters(path, existing)
+	fmt.Printf("filter removed: %s\n", cmdName)
 }
 
 func testFilter(args []string) {
@@ -833,7 +1059,7 @@ func buildExpectedHookCmd() (string, error) {
 }
 
 func printHelp() {
-	fmt.Printf(`chop %s — CLI output compressor for Claude Code
+	fmt.Printf(`chop %s - CLI output compressor for Claude Code
 
 Usage:
   chop <command> [args...]    Run command and compress output
@@ -847,7 +1073,8 @@ Subcommands:
   gain --unchopped --skip X   Mark command X as intentionally not needing a filter
   gain --unchopped --unskip X Remove command X from the skip list
   gain --delete X             Permanently delete all tracking records for command X
-  config                      Show config file path and contents
+  config                      Show global config path and contents
+  config init                 Create a starter global config.yml
   init --global               Install Claude Code hook (~/.claude/settings.json)
   init --uninstall            Remove Claude Code hook
   init --status               Check if hook is installed
@@ -855,10 +1082,13 @@ Subcommands:
   hook-audit --clear          Clear the hook audit log
   uninstall                   Remove everything: hook, data, config, binary
   uninstall --keep-data       Uninstall but preserve tracking history
-  reset                       Clear data (tracking, audit log) — keep installation
+  reset                       Clear data (tracking, audit log) - keep installation
   filter                      List custom user-defined filters
   filter path                 Show filters config file path
-  filter init                 Create a starter filters.yml with examples
+  filter init                 Create a starter ~/.config/chop/filters.yml
+  filter init --local         Create a starter .chop-filters.yml in current dir
+  filter add <cmd> [flags]    Add or update a filter (--keep, --drop, --head, --tail, --exec, --local)
+  filter remove <cmd>         Remove a filter (--local for project-level)
   filter test <cmd>           Test a custom filter (reads stdin)
   local                       Show local project config (.chop.yml)
   local add "git diff"        Disable a command in this project
@@ -878,7 +1108,7 @@ Claude Code integration:
 Config (%s):
   disabled: [cmd1, "git diff"]  Skip filtering for commands (supports subcommands)
 
-Local config (.chop.yml in project dir — managed via chop local):
+Local config (.chop.yml in project dir - managed via chop local):
   disabled: ["git diff"]        Overrides global disabled list for this project
 
 Custom filters (%s):

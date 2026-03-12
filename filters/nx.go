@@ -64,7 +64,7 @@ func filterNxTest(raw string) (string, error) {
 		return raw, nil
 	}
 
-	// Nx test wraps jest output — delegate to npm test filter
+	// Nx test wraps jest output - delegate to npm test filter
 	// but also extract the nx result line
 	raw = trimmed
 

@@ -33,7 +33,7 @@ func filterDockerPs(raw string) (string, error) {
 	}
 
 	// Standard docker ps has IMAGE before STATUS before NAMES.
-	// Custom --format can reorder columns, breaking the bounds math — return raw.
+	// Custom --format can reorder columns, breaking the bounds math - return raw.
 	if imageIdx > statusIdx || statusIdx > nameIdx {
 		return raw, nil
 	}

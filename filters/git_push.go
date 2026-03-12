@@ -43,7 +43,7 @@ func filterGitPush(raw string) (string, error) {
 			out = append(out, t)
 			continue
 		}
-		// remote: lines — keep if they contain meaningful content (URL, PR, non-empty)
+		// remote: lines - keep if they contain meaningful content (URL, PR, non-empty)
 		if strings.HasPrefix(t, "remote:") {
 			content := strings.TrimSpace(strings.TrimPrefix(t, "remote:"))
 			if content == "" || strings.HasPrefix(content, "Resolving deltas") {
@@ -53,7 +53,7 @@ func filterGitPush(raw string) (string, error) {
 			continue
 		}
 		// Skip progress noise: Enumerating, Counting, Compressing, Writing, Total, Delta compression
-		// (anything else we haven't matched is likely progress — skip it)
+		// (anything else we haven't matched is likely progress - skip it)
 	}
 
 	if len(out) == 0 {

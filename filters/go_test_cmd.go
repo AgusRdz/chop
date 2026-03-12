@@ -70,12 +70,12 @@ func filterGoTestCmd(raw string) (string, error) {
 			continue
 		}
 
-		// "=== PAUSE" / "=== CONT" — skip
+		// "=== PAUSE" / "=== CONT" - skip
 		if reGoTestPauseCont.MatchString(trimmed) {
 			continue
 		}
 
-		// "=== RUN TestName" — start tracking a new test
+		// "=== RUN TestName" - start tracking a new test
 		if m := reGoTestRun.FindStringSubmatch(trimmed); m != nil {
 			flushTest(false) // previous test wasn't FAIL if we hit a new RUN
 			currentTestName = m[1]
@@ -83,7 +83,7 @@ func filterGoTestCmd(raw string) (string, error) {
 			continue
 		}
 
-		// "--- PASS" — count and discard output
+		// "--- PASS" - count and discard output
 		if reGoTestPass.MatchString(trimmed) {
 			passed++
 			flushTest(false)
@@ -97,7 +97,7 @@ func filterGoTestCmd(raw string) (string, error) {
 			continue
 		}
 
-		// "--- FAIL" — count and keep output
+		// "--- FAIL" - count and keep output
 		if m := reGoTestFail.FindStringSubmatch(trimmed); m != nil {
 			failed++
 			failures = append(failures, fmt.Sprintf("FAIL: %s (%s)", m[1], m[2]))

@@ -314,7 +314,7 @@ func TestGetUnchopped(t *testing.T) {
 func TestGetUnchoppedExcludesMixedCommands(t *testing.T) {
 	setupTestDB(t)
 
-	// "git clone" sometimes compresses, sometimes not — should be excluded
+	// "git clone" sometimes compresses, sometimes not - should be excluded
 	// (both share the same first-two-word key "git clone")
 	if err := Track("git clone https://repo-a.git", 100, 50); err != nil {
 		t.Fatal(err)
@@ -323,7 +323,7 @@ func TestGetUnchoppedExcludesMixedCommands(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// "env" never compresses — should appear
+	// "env" never compresses - should appear
 	if err := Track("env", 30, 30); err != nil {
 		t.Fatal(err)
 	}

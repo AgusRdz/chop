@@ -99,11 +99,11 @@ func filterNpmInstall(raw string) (string, error) {
 			out.WriteString(summary)
 		}
 	} else if len(errors) == 0 && len(warnings) == 0 {
-		// No summary found and no issues — fallback
+		// No summary found and no issues - fallback
 		return raw, nil
 	}
 
-	// Append errors (keep full text — these are actionable)
+	// Append errors (keep full text - these are actionable)
 	for _, e := range errors {
 		fmt.Fprintf(&out, "\n%s", e)
 	}

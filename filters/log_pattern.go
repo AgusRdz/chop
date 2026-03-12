@@ -101,7 +101,7 @@ func compressLogPatterns(lines []string, isImportantFn func(string) bool) (strin
 		loc := logPattern.FindStringIndex(trimmed)
 		if loc != nil {
 			norm = strings.TrimSpace(trimmed[loc[1]:])
-			// logPattern captures HH:MM but not :SS — strip leftover seconds
+			// logPattern captures HH:MM but not :SS - strip leftover seconds
 			norm = logSecondsPattern.ReplaceAllString(norm, "")
 		}
 
@@ -146,7 +146,7 @@ func compressLogPatterns(lines []string, isImportantFn func(string) bool) (strin
 	for _, info := range infos {
 		fp := info.fingerprint
 		if !hasEnoughStaticTokens(fp) {
-			// Treat as unique — use the original line as fingerprint
+			// Treat as unique - use the original line as fingerprint
 			fp = info.original
 		}
 
@@ -193,10 +193,10 @@ func compressLogPatterns(lines []string, isImportantFn func(string) bool) (strin
 
 	writeGroup := func(g *patternGroup) {
 		if g.count == 1 {
-			// Single occurrence — show original line unchanged
+			// Single occurrence - show original line unchanged
 			b.WriteString(g.lastLine)
 		} else {
-			// Multiple occurrences — show a real example with count
+			// Multiple occurrences - show a real example with count
 			b.WriteString(fmt.Sprintf("%s (x%d)", g.lastLine, g.count))
 		}
 		b.WriteString("\n")

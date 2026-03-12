@@ -63,7 +63,7 @@ func filterGrep(raw string) (string, error) {
 		if len(lines) <= 10 {
 			return raw, nil
 		}
-		// Plain output — just truncate
+		// Plain output - just truncate
 		var out []string
 		for i, line := range lines {
 			if i >= 20 {

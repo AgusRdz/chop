@@ -215,7 +215,7 @@ func filterGhPrChecks(raw string) (string, error) {
 		} else if strings.Contains(lower, "pending") || strings.Contains(lower, "queued") || strings.Contains(lower, "in_progress") || strings.Contains(lower, "waiting") {
 			pending++
 		} else {
-			// Unknown line — count as passed (often header lines)
+			// Unknown line - count as passed (often header lines)
 			// But check for tab-delimited gh output format
 			parts := strings.Split(trimmed, "\t")
 			if len(parts) >= 2 {

@@ -34,7 +34,7 @@ func filterGitBranch(raw string) (string, error) {
 		}
 	}
 
-	// Short output — show current first + local branches
+	// Short output - show current first + local branches
 	totalBranches := len(local) + len(remote)
 	if current != "" {
 		totalBranches++
@@ -56,7 +56,7 @@ func filterGitBranch(raw string) (string, error) {
 			out.WriteString(b)
 			out.WriteString("\n")
 		}
-		// Reordering (current first), not compressing — skip sanity check
+		// Reordering (current first), not compressing - skip sanity check
 		return strings.TrimSpace(out.String()), nil
 	}
 

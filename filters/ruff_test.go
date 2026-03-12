@@ -111,7 +111,7 @@ func TestFilterRuff_LargeCheck(t *testing.T) {
 }
 
 func TestFilterRuff_FormatOutput(t *testing.T) {
-	// ruff format output has no lint problems — not detected as ruff output
+	// ruff format output has no lint problems - not detected as ruff output
 	raw := "4 files reformatted, 12 files left unchanged"
 
 	got, err := filterRuff(raw)

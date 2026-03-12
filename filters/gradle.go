@@ -144,7 +144,7 @@ func filterGradleBuild(raw string) (string, error) {
 			continue
 		}
 
-		// "* Try:" or "* Get more help" — skip sections
+		// "* Try:" or "* Get more help" - skip sections
 		if reGradleTrySection.MatchString(trimmed) || reGradleGetHelp.MatchString(trimmed) {
 			inWhatWrong = false
 			inSkipSection = true

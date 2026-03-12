@@ -9,7 +9,7 @@ func TestFilterNxBuild(t *testing.T) {
 	raw := "> nx run my-app:build\n\n> my-app@1.0.0 build\n> ng build\n\n" +
 		"✔ Browser application bundle generation complete.\n\n" +
 		"Build at: 2024-01-15 - Time: 8000ms\n\n" +
-		"——————————————————————————————————————————————\n\n" +
+		"----------------------------------------------\n\n" +
 		">  NX   Successfully ran target build for project my-app (10s)\n"
 
 	got, err := filterNxBuild(raw)

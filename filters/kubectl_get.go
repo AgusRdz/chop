@@ -14,8 +14,15 @@ func filterKubectlGet(raw string) (string, error) {
 	}
 
 	raw = trimmed
-	// Pass through JSON/YAML output
-	if strings.HasPrefix(raw, "{") || strings.HasPrefix(raw, "[") || strings.HasPrefix(raw, "apiVersion:") || strings.HasPrefix(raw, "kind:") {
+	// Pass through JSON/YAML output but compress JSON if possible
+	if strings.HasPrefix(raw, "{") || strings.HasPrefix(raw, "[") {
+		compressed, err := compressJSON(raw)
+		if err == nil {
+			return compressed, nil
+		}
+		return raw, nil
+	}
+	if strings.HasPrefix(raw, "apiVersion:") || strings.HasPrefix(raw, "kind:") {
 		return raw, nil
 	}
 

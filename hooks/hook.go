@@ -12,7 +12,8 @@ import (
 
 var supportedCommands = map[string]bool{
 	"git": true, "npm": true, "npx": true, "pnpm": true, "yarn": true, "bun": true,
-	"docker": true, "dotnet": true, "kubectl": true, "helm": true, "terraform": true,
+	"docker": true, "docker-compose": true, "dotnet": true, "kubectl": true, "helm": true, "terraform": true,
+	"ansible-playbook": true,
 	"cargo": true, "go": true, "tsc": true, "eslint": true, "biome": true,
 	"gh": true, "grep": true, "rg": true, "curl": true, "http": true,
 	"aws": true, "az": true, "gcloud": true, "mvn": true, "gradle": true, "gradlew": true,

@@ -54,6 +54,8 @@ func get(command string, args []string) FilterFunc {
 		return getBunFilter(args)
 	case "docker":
 		return getDockerFilter(args)
+	case "docker-compose":
+		return getDockerComposeFilter(args)
 	case "dotnet":
 		return getDotnetFilter(args)
 	case "kubectl":
@@ -119,6 +121,9 @@ func get(command string, args []string) FilterFunc {
 		return filterRspec
 	case "rubocop":
 		return filterRubocop
+	// Ansible
+	case "ansible-playbook":
+		return filterAnsiblePlaybook
 	// PHP
 	case "composer":
 		return getComposerFilter(args)

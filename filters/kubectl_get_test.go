@@ -127,7 +127,9 @@ func TestFilterKubectlGetJSONPassthrough(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got != raw {
-		t.Errorf("expected JSON passthrough, got: %s", got)
+	// Should now be pretty printed and compressed by compressJSON
+	expected, _ := compressJSON(raw)
+	if got != expected {
+		t.Errorf("expected compressed JSON, got:\n%s\nexpected:\n%s", got, expected)
 	}
 }

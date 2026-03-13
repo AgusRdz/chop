@@ -36,6 +36,16 @@ func filterKubectlDescribe(raw string) (string, error) {
 	if trimmed == "" {
 		return "", nil
 	}
+
+	// Compress JSON output if kubectl describe was somehow invoked with json
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		compressed, err := compressJSON(trimmed)
+		if err == nil {
+			return compressed, nil
+		}
+		return raw, nil
+	}
+
 	if !looksLikeKubectlDescribeOutput(trimmed) {
 		return raw, nil
 	}

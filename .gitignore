@@ -10,3 +10,4 @@ tests/fixtures/
 
 # local dev artifacts
 docs/
+coverage.out

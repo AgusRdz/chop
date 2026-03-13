@@ -112,3 +112,44 @@ func TestAcliJiraWorkitemSearchEmpty(t *testing.T) {
 		t.Errorf("expected empty output, got: %q", got)
 	}
 }
+
+func TestGetAcliFilter(t *testing.T) {
+	if getAcliFilter(nil) != nil {
+		t.Error("expected nil for empty args")
+	}
+	if getAcliFilter([]string{"unknown"}) != nil {
+		t.Error("expected nil for unknown subcommand")
+	}
+	if getAcliFilter([]string{"jira", "workitem", "view"}) == nil {
+		t.Error("expected filter for jira")
+	}
+}
+
+func TestGetAcliJiraFilter(t *testing.T) {
+	if getAcliJiraFilter(nil) != nil {
+		t.Error("expected nil for empty args")
+	}
+	// "unknown" subcommands fallback to filterAutoDetect
+	if getAcliJiraFilter([]string{"unknown"}) == nil {
+		t.Error("expected filterAutoDetect for unknown subcommand")
+	}
+	if getAcliJiraFilter([]string{"workitem", "view"}) == nil {
+		t.Error("expected filter for workitem")
+	}
+}
+
+func TestGetAcliJiraWorkitemFilter(t *testing.T) {
+	if getAcliJiraWorkitemFilter(nil) != nil {
+		t.Error("expected nil for empty args")
+	}
+	// "unknown" subcommands fallback to filterAutoDetect
+	if getAcliJiraWorkitemFilter([]string{"unknown"}) == nil {
+		t.Error("expected filterAutoDetect for unknown subcommand")
+	}
+	if getAcliJiraWorkitemFilter([]string{"view"}) == nil {
+		t.Error("expected filter for view")
+	}
+	if getAcliJiraWorkitemFilter([]string{"search"}) == nil {
+		t.Error("expected filter for search")
+	}
+}

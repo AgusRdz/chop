@@ -498,3 +498,145 @@ func TestFormatHistoryEmpty(t *testing.T) {
 		t.Errorf("unexpected empty history: %s", out)
 	}
 }
+
+func TestGetCommandSummary(t *testing.T) {
+	setupTestDB(t)
+
+	// insert some commands
+	err := Track("npm test", 1000, 100)
+	if err != nil {
+		t.Fatalf("Failed to track npm test: %v", err)
+	}
+	err = Track("npm install", 500, 100)
+	if err != nil {
+		t.Fatalf("Failed to track npm install: %v", err)
+	}
+	err = Track("git status", 100, 100)
+	if err != nil {
+		t.Fatalf("Failed to track git status: %v", err)
+	}
+
+	summaries, err := GetCommandSummary()
+	if err != nil {
+		t.Fatalf("GetCommandSummary failed: %v", err)
+	}
+
+	if len(summaries) != 2 {
+		t.Fatalf("expected 2 base commands, got %d", len(summaries))
+	}
+
+	// npm first (more savings)
+	if summaries[0].BaseCommand != "npm" {
+		t.Errorf("expected top command to be npm, got %s", summaries[0].BaseCommand)
+	}
+	if summaries[0].Count != 2 {
+		t.Errorf("expected 2 calls for npm, got %d", summaries[0].Count)
+	}
+	if summaries[0].SavedTokens != 1300 {
+		t.Errorf("expected 1300 saved tokens for npm, got %d", summaries[0].SavedTokens)
+	}
+	if summaries[0].ZeroCount != 0 {
+		t.Errorf("expected 0 zero count for npm, got %d", summaries[0].ZeroCount)
+	}
+
+	if summaries[1].BaseCommand != "git" {
+		t.Errorf("expected second command to be git, got %s", summaries[1].BaseCommand)
+	}
+	if summaries[1].Count != 1 {
+		t.Errorf("expected 1 call for git, got %d", summaries[1].Count)
+	}
+	if summaries[1].SavedTokens != 0 {
+		t.Errorf("expected 0 saved tokens for git, got %d", summaries[1].SavedTokens)
+	}
+	if summaries[1].ZeroCount != 1 {
+		t.Errorf("expected 1 zero count for git, got %d", summaries[1].ZeroCount)
+	}
+}
+
+func TestFormatSummary(t *testing.T) {
+	summaries := []CommandSummary{
+		{
+			BaseCommand: "npm",
+			Count:       2,
+			SavedTokens: 1300,
+			SavingsPct:  86.6,
+			ZeroCount:   0,
+		},
+		{
+			BaseCommand: "git",
+			Count:       1,
+			SavedTokens: 0,
+			SavingsPct:  0,
+			ZeroCount:   1,
+		},
+	}
+
+	out := FormatSummary(summaries)
+	if !strings.Contains(out, "npm") {
+		t.Errorf("expected output to contain npm: %s", out)
+	}
+	if !strings.Contains(out, "1,300") {
+		t.Errorf("expected output to contain 1,300: %s", out)
+	}
+	if !strings.Contains(out, "git") {
+		t.Errorf("expected output to contain git: %s", out)
+	}
+	if !strings.Contains(out, "(1 calls at 0%)") {
+		t.Errorf("expected output to contain '(1 calls at 0%%)': %s", out)
+	}
+
+	outEmpty := FormatSummary(nil)
+	if outEmpty != "no commands tracked yet" {
+		t.Errorf("expected empty message, got %s", outEmpty)
+	}
+}
+
+func TestTrackingSkip(t *testing.T) {
+	setupTestDB(t)
+
+	err := AddTrackingSkip("docker ps")
+	if err != nil {
+		t.Fatalf("AddTrackingSkip failed: %v", err)
+	}
+
+	var skipped []string
+	rows, err := db.Query(`SELECT command FROM tracking_skip ORDER BY command`)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cmd string
+		if err := rows.Scan(&cmd); err != nil {
+			t.Fatalf("Scan failed: %v", err)
+		}
+		skipped = append(skipped, cmd)
+	}
+
+	if len(skipped) != 1 || skipped[0] != "docker ps" {
+		t.Errorf("expected [docker ps], got %v", skipped)
+	}
+
+	err = RemoveTrackingSkip("docker ps")
+	if err != nil {
+		t.Fatalf("RemoveTrackingSkip failed: %v", err)
+	}
+
+	skipped = nil
+	rows, err = db.Query(`SELECT command FROM tracking_skip ORDER BY command`)
+	if err != nil {
+		t.Fatalf("Query failed: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cmd string
+		if err := rows.Scan(&cmd); err != nil {
+			t.Fatalf("Scan failed: %v", err)
+		}
+		skipped = append(skipped, cmd)
+	}
+
+	if len(skipped) != 0 {
+		t.Errorf("expected empty skipped list, got %v", skipped)
+	}
+}

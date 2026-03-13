@@ -180,3 +180,21 @@ func TestFilterAwsLogs(t *testing.T) {
 		t.Errorf("expected unique count in header, got:\n%s", got)
 	}
 }
+
+func TestGetAwsFilter(t *testing.T) {
+	if getAwsFilter(nil) == nil {
+		t.Error("expected filterAwsGeneric for empty args")
+	}
+	if getAwsFilter([]string{"unknown"}) == nil {
+		t.Error("expected filterAwsGeneric for unknown subcommand")
+	}
+	if getAwsFilter([]string{"s3", "ls"}) == nil {
+		t.Error("expected filterAwsS3Ls for s3 ls")
+	}
+	if getAwsFilter([]string{"ec2", "describe-instances"}) == nil {
+		t.Error("expected filterAwsEc2Describe for ec2 describe-instances")
+	}
+	if getAwsFilter([]string{"logs"}) == nil {
+		t.Error("expected filterAwsLogs for logs")
+	}
+}

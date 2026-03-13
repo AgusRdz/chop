@@ -116,3 +116,18 @@ func TestFilterGcloudEmptyOutput(t *testing.T) {
 		t.Errorf("expected empty output, got: %q", got)
 	}
 }
+
+func TestGetGcloudFilter(t *testing.T) {
+	if getGcloudFilter(nil) == nil {
+		t.Error("expected filterGcloudGeneric for empty args")
+	}
+	if getGcloudFilter([]string{"unknown"}) == nil {
+		t.Error("expected filterGcloudGeneric for unknown subcommand")
+	}
+	if getGcloudFilter([]string{"compute", "instances", "list"}) == nil {
+		t.Error("expected filterGcloudComputeList for compute instances list")
+	}
+	if getGcloudFilter([]string{"logging", "read"}) == nil {
+		t.Error("expected filterGcloudLoggingRead for logging read")
+	}
+}

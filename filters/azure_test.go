@@ -126,3 +126,15 @@ func TestFilterAzResourceList(t *testing.T) {
 		t.Errorf("expected count in output, got:\n%s", got)
 	}
 }
+
+func TestGetAzFilter(t *testing.T) {
+	if getAzFilter(nil) == nil {
+		t.Error("expected filterAzGeneric for empty args")
+	}
+	if getAzFilter([]string{"unknown"}) == nil {
+		t.Error("expected filterAzGeneric for unknown subcommand")
+	}
+	if getAzFilter([]string{"vm", "list"}) == nil {
+		t.Error("expected filterAzVmList for vm list")
+	}
+}

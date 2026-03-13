@@ -587,6 +587,7 @@ echo -e "DEBUG init\nINFO started\nERROR failed" | chop filter test myctl deploy
 
 ```bash
 make test              # run tests
+make coverage          # run tests and show coverage
 make build             # build (linux, in container)
 make install           # build for your platform + install to ~/bin/
 make cross             # build all platforms (linux/darwin/windows × amd64/arm64)

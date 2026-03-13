@@ -22,12 +22,16 @@ type Stats struct {
 	TotalSavedTokens  int
 	OverallSavingsPct float64
 	TodayCommands     int
+	TodayRawTokens    int
 	TodaySavedTokens  int
 	WeekCommands      int
+	WeekRawTokens     int
 	WeekSavedTokens   int
 	MonthCommands     int
+	MonthRawTokens    int
 	MonthSavedTokens  int
 	YearCommands      int
+	YearRawTokens     int
 	YearSavedTokens   int
 }
 
@@ -151,10 +155,10 @@ func GetStats() (Stats, error) {
 
 	today := time.Now().Local().Format("2006-01-02")
 	row = db.QueryRow(
-		`SELECT COUNT(*), COALESCE(SUM(raw_tokens - filtered_tokens),0) FROM tracking WHERE timestamp LIKE ?`,
+		`SELECT COUNT(*), COALESCE(SUM(raw_tokens),0), COALESCE(SUM(raw_tokens - filtered_tokens),0) FROM tracking WHERE timestamp LIKE ?`,
 		today+"%",
 	)
-	if err := row.Scan(&s.TodayCommands, &s.TodaySavedTokens); err != nil {
+	if err := row.Scan(&s.TodayCommands, &s.TodayRawTokens, &s.TodaySavedTokens); err != nil {
 		return Stats{}, err
 	}
 
@@ -166,30 +170,30 @@ func GetStats() (Stats, error) {
 	}
 	weekStart := time.Date(now.Year(), now.Month(), now.Day()-int(weekday-time.Monday), 0, 0, 0, 0, now.Location()).Format("2006-01-02 00:00:00")
 	row = db.QueryRow(
-		`SELECT COUNT(*), COALESCE(SUM(raw_tokens - filtered_tokens),0) FROM tracking WHERE timestamp >= ?`,
+		`SELECT COUNT(*), COALESCE(SUM(raw_tokens),0), COALESCE(SUM(raw_tokens - filtered_tokens),0) FROM tracking WHERE timestamp >= ?`,
 		weekStart,
 	)
-	if err := row.Scan(&s.WeekCommands, &s.WeekSavedTokens); err != nil {
+	if err := row.Scan(&s.WeekCommands, &s.WeekRawTokens, &s.WeekSavedTokens); err != nil {
 		return Stats{}, err
 	}
 
 	// Calendar month: 1st of current month through now
 	monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02 00:00:00")
 	row = db.QueryRow(
-		`SELECT COUNT(*), COALESCE(SUM(raw_tokens - filtered_tokens),0) FROM tracking WHERE timestamp >= ?`,
+		`SELECT COUNT(*), COALESCE(SUM(raw_tokens),0), COALESCE(SUM(raw_tokens - filtered_tokens),0) FROM tracking WHERE timestamp >= ?`,
 		monthStart,
 	)
-	if err := row.Scan(&s.MonthCommands, &s.MonthSavedTokens); err != nil {
+	if err := row.Scan(&s.MonthCommands, &s.MonthRawTokens, &s.MonthSavedTokens); err != nil {
 		return Stats{}, err
 	}
 
 	// Calendar year: Jan 1 of current year through now
 	yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location()).Format("2006-01-02 00:00:00")
 	row = db.QueryRow(
-		`SELECT COUNT(*), COALESCE(SUM(raw_tokens - filtered_tokens),0) FROM tracking WHERE timestamp >= ?`,
+		`SELECT COUNT(*), COALESCE(SUM(raw_tokens),0), COALESCE(SUM(raw_tokens - filtered_tokens),0) FROM tracking WHERE timestamp >= ?`,
 		yearStart,
 	)
-	if err := row.Scan(&s.YearCommands, &s.YearSavedTokens); err != nil {
+	if err := row.Scan(&s.YearCommands, &s.YearRawTokens, &s.YearSavedTokens); err != nil {
 		return Stats{}, err
 	}
 
@@ -466,19 +470,25 @@ func CountTokens(s string) int {
 
 // FormatGain prints the gain summary report.
 func FormatGain(s Stats) string {
+	pct := func(saved, raw int) float64 {
+		if raw == 0 {
+			return 0
+		}
+		return float64(saved) / float64(raw) * 100.0
+	}
 	return fmt.Sprintf(`chop - token savings report
 
-  today: %d commands, %s tokens saved
-  week:  %d commands, %s tokens saved
-  month: %d commands, %s tokens saved
-  year:  %d commands, %s tokens saved
-  total: %d commands, %s tokens saved (%.1f%% avg)
+  today: %d commands   %s tokens saved   (%.1f%% compression)
+  week:  %d commands   %s tokens saved   (%.1f%% compression)
+  month: %d commands   %s tokens saved   (%.1f%% compression)
+  year:  %d commands   %s tokens saved   (%.1f%% compression)
+  total: %d commands   %s tokens saved   (%.1f%% compression)
 
 run 'chop gain --history' for command history`,
-		s.TodayCommands, formatNum(s.TodaySavedTokens),
-		s.WeekCommands, formatNum(s.WeekSavedTokens),
-		s.MonthCommands, formatNum(s.MonthSavedTokens),
-		s.YearCommands, formatNum(s.YearSavedTokens),
+		s.TodayCommands, formatNum(s.TodaySavedTokens), pct(s.TodaySavedTokens, s.TodayRawTokens),
+		s.WeekCommands, formatNum(s.WeekSavedTokens), pct(s.WeekSavedTokens, s.WeekRawTokens),
+		s.MonthCommands, formatNum(s.MonthSavedTokens), pct(s.MonthSavedTokens, s.MonthRawTokens),
+		s.YearCommands, formatNum(s.YearSavedTokens), pct(s.YearSavedTokens, s.YearRawTokens),
 		s.TotalCommands, formatNum(s.TotalSavedTokens), s.OverallSavingsPct,
 	)
 }

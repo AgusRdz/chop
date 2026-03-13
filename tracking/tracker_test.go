@@ -214,12 +214,16 @@ func TestFormatGain(t *testing.T) {
 		TotalSavedTokens:  456789,
 		OverallSavingsPct: 78.3,
 		TodayCommands:     45,
+		TodayRawTokens:    20000,
 		TodaySavedTokens:  12340,
 		WeekCommands:      210,
+		WeekRawTokens:     150000,
 		WeekSavedTokens:   98765,
 		MonthCommands:     890,
+		MonthRawTokens:    400000,
 		MonthSavedTokens:  345678,
 		YearCommands:      1150,
+		YearRawTokens:     490000,
 		YearSavedTokens:   430000,
 	}
 	out := FormatGain(s)
@@ -240,6 +244,9 @@ func TestFormatGain(t *testing.T) {
 	}
 	if !strings.Contains(out, "78.3%") {
 		t.Errorf("missing overall pct in output: %s", out)
+	}
+	if !strings.Contains(out, "compression") {
+		t.Errorf("missing compression label in output: %s", out)
 	}
 }
 

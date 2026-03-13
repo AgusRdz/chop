@@ -351,9 +351,14 @@ Less tokens wasted on noise, more tokens spent on productive work.
 Every command is tracked in a local SQLite database:
 
 ```bash
-chop gain              # overall stats
-chop gain --history    # last 20 commands with per-command savings
-chop gain --summary    # per-command breakdown
+chop gain                               # overall stats
+chop gain --history                     # last 20 commands with per-command savings
+chop gain --history --limit 100         # last 100 commands
+chop gain --history --all               # all recorded commands
+chop gain --since 7d                    # stats for the last 7 days
+chop gain --history --since 7d          # history filtered to last 7 days
+chop gain --history --since 7d --all    # all commands in the last 7 days
+chop gain --summary                     # per-command breakdown
 ```
 
 ```

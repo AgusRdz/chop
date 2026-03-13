@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -355,8 +356,9 @@ disabled: []
 }
 
 func runGain(args []string) {
-	var showHistory, showSummary, showUnchopped, verbose bool
+	var showHistory, showSummary, showUnchopped, verbose, showAll bool
 	var skipCmd, unskipCmd, deleteCmd, noTrackCmd, resumeTrackCmd, exportFormat, sinceStr string
+	historyLimit := 20
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--history":
@@ -405,6 +407,15 @@ func runGain(args []string) {
 				i++
 				sinceStr = args[i]
 			}
+		case "--limit":
+			if i+1 < len(args) {
+				i++
+				if n, err := strconv.Atoi(args[i]); err == nil && n > 0 {
+					historyLimit = n
+				}
+			}
+		case "--all":
+			showAll = true
 		}
 	}
 
@@ -530,10 +541,14 @@ func runGain(args []string) {
 	if showHistory {
 		var records []tracking.Record
 		var err error
+		limit := historyLimit
+		if showAll {
+			limit = 10000
+		}
 		if sinceDuration > 0 {
-			records, err = tracking.GetHistorySince(20, sinceDuration)
+			records, err = tracking.GetHistorySince(limit, sinceDuration)
 		} else {
-			records, err = tracking.GetHistory(20)
+			records, err = tracking.GetHistory(limit)
 		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "chop: failed to read history: %v\n", err)
@@ -1310,7 +1325,10 @@ Usage:
 
 Subcommands:
   gain                        Show token savings stats
-  gain --history              Recent commands with savings
+  gain --history              Recent commands with savings (default: last 20)
+  gain --history --limit N    Show last N commands
+  gain --history --all        Show all commands in range
+  gain --history --since <d>  History filtered to a time window (combinable with --limit/--all)
   gain --summary              Per-command savings breakdown
   gain --unchopped            Commands never compressed (new filter candidates)
   gain --unchopped --skip X   Mark command X as intentionally not needing a filter

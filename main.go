@@ -30,6 +30,8 @@ var version = "dev"
 func main() {
 	// Apply any pending auto-update from a previous run
 	updater.ApplyPendingUpdate(version)
+	// Show hint if a newer version is available and auto-update is off
+	updater.NotifyIfUpdateAvailable(version)
 
 	if len(os.Args) < 2 {
 		printHelp()
@@ -56,6 +58,9 @@ func main() {
 		return
 	case "update":
 		updater.Run(version)
+		return
+	case "auto-update":
+		runAutoUpdate(os.Args[2:])
 		return
 	case "gain":
 		runGain(os.Args[2:])
@@ -563,6 +568,45 @@ func runGain(args []string) {
 		os.Exit(1)
 	}
 	fmt.Println(tracking.FormatGain(stats))
+}
+
+func runAutoUpdate(args []string) {
+	if len(args) == 0 {
+		if updater.IsAutoUpdateEnabled() {
+			fmt.Println("auto-update: on")
+		} else {
+			fmt.Println("auto-update: off")
+			fmt.Println("chop will notify you when updates are available")
+			fmt.Println("run 'chop auto-update on' to enable automatic updates")
+		}
+		return
+	}
+
+	switch args[0] {
+	case "on":
+		if updater.IsAutoUpdateEnabled() {
+			fmt.Println("auto-update is already on")
+			return
+		}
+		if err := updater.SetAutoUpdate(true); err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to enable auto-update: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("auto-update enabled — chop will update itself in the background")
+	case "off":
+		if !updater.IsAutoUpdateEnabled() {
+			fmt.Println("auto-update is already off")
+			return
+		}
+		if err := updater.SetAutoUpdate(false); err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to disable auto-update: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("auto-update disabled — run 'chop update' to update manually")
+	default:
+		fmt.Fprintf(os.Stderr, "usage: chop auto-update [on|off]\n")
+		os.Exit(1)
+	}
 }
 
 func runHookAudit(args []string) {
@@ -1304,6 +1348,9 @@ Subcommands:
   changelog                   Show changes in the current version
   changelog --full            Show full changelog history
   update                      Update to the latest version
+  auto-update                 Show auto-update status
+  auto-update on              Enable automatic background updates
+  auto-update off             Disable auto-updates (default) — notifies when outdated
   --post-update-check         Check install location after an update (called automatically by update)
   help                        Show this help
   version                     Show version

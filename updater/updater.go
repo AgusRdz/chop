@@ -49,6 +49,7 @@ func Run(currentVersion string) {
 	}
 
 	fmt.Printf("updated to %s\n", latest)
+	clearUpdateAvailable()
 
 	// Re-exec the new binary for post-update checks.
 	// This ensures the check runs with the new version's code regardless

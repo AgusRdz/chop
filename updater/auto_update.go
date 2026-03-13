@@ -63,6 +63,7 @@ func touchLastCheck() {
 
 // ApplyPendingUpdate checks for a pending update downloaded in a previous run.
 // If found, replaces the current binary. The update takes effect on the next invocation.
+// Only applies when auto-update is enabled. Cleans up stale pending files otherwise.
 // Silent on all errors - never disrupts the current command.
 func ApplyPendingUpdate(currentVersion string) {
 	if IsDev(currentVersion) {
@@ -76,6 +77,16 @@ func ApplyPendingUpdate(currentVersion string) {
 
 	data, err := os.ReadFile(pending)
 	if err != nil {
+		return
+	}
+
+	// If auto-update is off, clean up any leftover pending files
+	if !IsAutoUpdateEnabled() {
+		parts := strings.SplitN(strings.TrimSpace(string(data)), "\n", 2)
+		os.Remove(pending)
+		if len(parts) == 2 {
+			os.Remove(parts[1]) // remove downloaded binary
+		}
 		return
 	}
 
@@ -135,8 +146,9 @@ func replaceBinary(destPath, srcPath string) error {
 	return os.Rename(srcPath, destPath)
 }
 
-// BackgroundCheck spawns a detached subprocess to check for updates and returns
-// immediately — the parent process exits without waiting for the check to complete.
+// BackgroundCheck spawns a detached subprocess to check for updates.
+// When auto-update is on, the subprocess downloads the new binary.
+// When auto-update is off, it only records the available version for a hint message.
 // Silent on all errors - never disrupts command output.
 func BackgroundCheck(currentVersion string) {
 	if IsDev(currentVersion) {
@@ -162,11 +174,22 @@ func BackgroundCheck(currentVersion string) {
 	}
 }
 
-// RunBackgroundUpdate performs the version check and download.
+// RunBackgroundUpdate performs the version check and optionally downloads.
+// When auto-update is on: checks version + downloads binary for next-run apply.
+// When auto-update is off: checks version + records it so a hint is shown.
 // Called by the subprocess spawned from BackgroundCheck — runs after parent exits.
 func RunBackgroundUpdate(currentVersion string) {
 	latest, err := latestVersion()
 	if err != nil || latest == currentVersion {
+		clearUpdateAvailable()
+		return
+	}
+
+	// Always record that an update is available (for the hint message)
+	recordUpdateAvailable(latest)
+
+	// Only download when auto-update is on
+	if !IsAutoUpdateEnabled() {
 		return
 	}
 

@@ -351,7 +351,7 @@ disabled: []
 
 func runGain(args []string) {
 	var showHistory, showSummary, showUnchopped, verbose bool
-	var skipCmd, unskipCmd, deleteCmd, noTrackCmd, resumeTrackCmd string
+	var skipCmd, unskipCmd, deleteCmd, noTrackCmd, resumeTrackCmd, exportFormat, sinceStr string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--history":
@@ -390,7 +390,67 @@ func runGain(args []string) {
 				i++
 				resumeTrackCmd = args[i]
 			}
+		case "--export":
+			if i+1 < len(args) {
+				i++
+				exportFormat = args[i]
+			}
+		case "--since":
+			if i+1 < len(args) {
+				i++
+				sinceStr = args[i]
+			}
 		}
+	}
+
+	var sinceDuration time.Duration
+	if sinceStr != "" {
+		d, err := tracking.ParseSinceDuration(sinceStr)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "chop: invalid duration %q — use formats like 7d, 2w, 24h, 30m\n", sinceStr)
+			os.Exit(1)
+		}
+		sinceDuration = d
+	}
+
+	if exportFormat != "" {
+		if exportFormat != "json" && exportFormat != "csv" {
+			fmt.Fprintf(os.Stderr, "chop: unknown export format %q — use json or csv\n", exportFormat)
+			os.Exit(1)
+		}
+		var records []tracking.Record
+		var stats tracking.Stats
+		var err error
+		if sinceDuration > 0 {
+			records, err = tracking.GetHistorySince(10000, sinceDuration)
+		} else {
+			records, err = tracking.GetHistory(10000)
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to read history: %v\n", err)
+			os.Exit(1)
+		}
+		if sinceDuration > 0 {
+			stats, err = tracking.GetStatsSince(sinceDuration)
+		} else {
+			stats, err = tracking.GetStats()
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to read stats: %v\n", err)
+			os.Exit(1)
+		}
+		if exportFormat == "json" {
+			if err := tracking.ExportJSON(os.Stdout, records, stats); err != nil {
+				fmt.Fprintf(os.Stderr, "chop: export failed: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			if err := tracking.ExportCSV(os.Stdout, records); err != nil {
+				fmt.Fprintf(os.Stderr, "chop: export failed: %v\n", err)
+				os.Exit(1)
+			}
+		}
+		return
 	}
 
 	if deleteCmd != "" {
@@ -463,7 +523,13 @@ func runGain(args []string) {
 	}
 
 	if showHistory {
-		records, err := tracking.GetHistory(20)
+		var records []tracking.Record
+		var err error
+		if sinceDuration > 0 {
+			records, err = tracking.GetHistorySince(20, sinceDuration)
+		} else {
+			records, err = tracking.GetHistory(20)
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "chop: failed to read history: %v\n", err)
 			os.Exit(1)
@@ -482,6 +548,15 @@ func runGain(args []string) {
 		return
 	}
 
+	if sinceDuration > 0 {
+		stats, err := tracking.GetStatsSince(sinceDuration)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to read stats: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(tracking.FormatGainSince(stats, sinceStr))
+		return
+	}
 	stats, err := tracking.GetStats()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "chop: failed to read stats: %v\n", err)
@@ -1199,6 +1274,9 @@ Subcommands:
   gain --delete X             Permanently delete all tracking records for command X
   gain --no-track X           Delete records for X and never track it again
   gain --resume-track X       Re-enable tracking for a previously ignored command
+  gain --since <duration>     Filter stats to a time window (e.g. 7d, 2w, 24h, 30m)
+  gain --export json          Export history as JSON to stdout
+  gain --export csv           Export history as CSV to stdout
   config                      Show global config path and contents
   config init                 Create a starter global config.yml
   init --global               Install Claude Code hook (~/.claude/settings.json)

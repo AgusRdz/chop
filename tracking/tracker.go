@@ -2,7 +2,10 @@ package tracking
 
 import (
 	"database/sql"
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -523,4 +526,160 @@ func formatNum(n int) string {
 		return fmt.Sprintf("%d", n)
 	}
 	return fmt.Sprintf("%d,%03d", n/1000, n%1000)
+}
+
+// GetStatsSince returns aggregate stats for records within the last d duration.
+func GetStatsSince(d time.Duration) (Stats, error) {
+	if err := Init(); err != nil {
+		return Stats{}, err
+	}
+	since := time.Now().Local().Add(-d).Format("2006-01-02 15:04:05")
+	var s Stats
+
+	row := db.QueryRow(
+		`SELECT COUNT(*), COALESCE(SUM(raw_tokens),0), COALESCE(SUM(raw_tokens - filtered_tokens),0)
+         FROM tracking WHERE timestamp >= ?`, since)
+	if err := row.Scan(&s.TotalCommands, &s.TotalRawTokens, &s.TotalSavedTokens); err != nil {
+		return Stats{}, err
+	}
+	if s.TotalRawTokens > 0 {
+		s.OverallSavingsPct = float64(s.TotalSavedTokens) / float64(s.TotalRawTokens) * 100.0
+	}
+	return s, nil
+}
+
+// GetHistorySince returns up to limit records newer than the given duration.
+func GetHistorySince(limit int, d time.Duration) ([]Record, error) {
+	if err := Init(); err != nil {
+		return nil, err
+	}
+	since := time.Now().Local().Add(-d).Format("2006-01-02 15:04:05")
+	rows, err := db.Query(
+		`SELECT timestamp, command, raw_tokens, filtered_tokens, savings_pct
+         FROM tracking WHERE timestamp >= ? ORDER BY id DESC LIMIT ?`, since, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []Record
+	for rows.Next() {
+		var r Record
+		if err := rows.Scan(&r.Timestamp, &r.Command, &r.RawTokens, &r.FilteredTokens, &r.SavingsPct); err != nil {
+			return nil, err
+		}
+		records = append(records, r)
+	}
+	return records, rows.Err()
+}
+
+// FormatGainSince formats a stats report for a --since time window.
+func FormatGainSince(s Stats, sinceStr string) string {
+	return fmt.Sprintf(`chop - token savings report (last %s)
+
+  commands: %d
+  saved:    %s tokens
+  avg:      %.1f%%
+
+run 'chop gain --since %s --history' for command history`,
+		sinceStr,
+		s.TotalCommands, formatNum(s.TotalSavedTokens), s.OverallSavingsPct,
+		sinceStr,
+	)
+}
+
+// ParseSinceDuration parses duration strings like "7d", "2w", "24h", "30m".
+// Supports: m (minutes), h (hours), d (days), w (weeks).
+// Falls back to time.ParseDuration for standard Go duration strings.
+func ParseSinceDuration(s string) (time.Duration, error) {
+	if len(s) < 2 {
+		return 0, fmt.Errorf("invalid duration %q", s)
+	}
+	unit := s[len(s)-1]
+	value := s[:len(s)-1]
+	var n int
+	if _, err := fmt.Sscanf(value, "%d", &n); err != nil {
+		return time.ParseDuration(s)
+	}
+	switch unit {
+	case 'm':
+		return time.Duration(n) * time.Minute, nil
+	case 'h':
+		return time.Duration(n) * time.Hour, nil
+	case 'd':
+		return time.Duration(n) * 24 * time.Hour, nil
+	case 'w':
+		return time.Duration(n) * 7 * 24 * time.Hour, nil
+	default:
+		return time.ParseDuration(s)
+	}
+}
+
+// ExportJSON writes tracking history and summary stats as JSON to w.
+func ExportJSON(w io.Writer, records []Record, s Stats) error {
+	type jsonRecord struct {
+		Ts         string  `json:"ts"`
+		Cmd        string  `json:"cmd"`
+		Raw        int     `json:"raw"`
+		Compressed int     `json:"compressed"`
+		Saved      int     `json:"saved"`
+		SavingsPct float64 `json:"savings_pct"`
+	}
+	type jsonSummary struct {
+		TotalCommands int     `json:"total_commands"`
+		TokensSaved   int     `json:"tokens_saved"`
+		AvgSavingsPct float64 `json:"avg_savings_pct"`
+	}
+	type jsonExport struct {
+		GeneratedAt string       `json:"generated_at"`
+		Summary     jsonSummary  `json:"summary"`
+		History     []jsonRecord `json:"history"`
+	}
+
+	history := make([]jsonRecord, len(records))
+	for i, r := range records {
+		history[i] = jsonRecord{
+			Ts:         r.Timestamp,
+			Cmd:        r.Command,
+			Raw:        r.RawTokens,
+			Compressed: r.FilteredTokens,
+			Saved:      r.RawTokens - r.FilteredTokens,
+			SavingsPct: r.SavingsPct,
+		}
+	}
+
+	export := jsonExport{
+		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		Summary: jsonSummary{
+			TotalCommands: s.TotalCommands,
+			TokensSaved:   s.TotalSavedTokens,
+			AvgSavingsPct: s.OverallSavingsPct,
+		},
+		History: history,
+	}
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(export)
+}
+
+// ExportCSV writes tracking history as CSV to w.
+func ExportCSV(w io.Writer, records []Record) error {
+	cw := csv.NewWriter(w)
+	if err := cw.Write([]string{"timestamp", "command", "raw_tokens", "compressed_tokens", "saved_tokens", "savings_pct"}); err != nil {
+		return err
+	}
+	for _, r := range records {
+		row := []string{
+			r.Timestamp,
+			r.Command,
+			fmt.Sprintf("%d", r.RawTokens),
+			fmt.Sprintf("%d", r.FilteredTokens),
+			fmt.Sprintf("%d", r.RawTokens-r.FilteredTokens),
+			fmt.Sprintf("%.1f", r.SavingsPct),
+		}
+		if err := cw.Write(row); err != nil {
+			return err
+		}
+	}
+	cw.Flush()
+	return cw.Error()
 }

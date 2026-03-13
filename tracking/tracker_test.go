@@ -1,6 +1,9 @@
 package tracking
 
 import (
+	"bytes"
+	"encoding/csv"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -496,5 +499,116 @@ func TestFormatHistoryEmpty(t *testing.T) {
 	out := FormatHistory(nil)
 	if out != "no commands tracked yet" {
 		t.Errorf("unexpected empty history: %s", out)
+	}
+}
+
+func TestParseSinceDuration(t *testing.T) {
+	tests := []struct {
+		input    string
+		wantSecs float64
+		wantErr  bool
+	}{
+		{"30m", 30 * 60, false},
+		{"24h", 24 * 3600, false},
+		{"7d", 7 * 24 * 3600, false},
+		{"2w", 2 * 7 * 24 * 3600, false},
+		{"x", 0, true},
+		{"", 0, true},
+	}
+	for _, tc := range tests {
+		d, err := ParseSinceDuration(tc.input)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("ParseSinceDuration(%q) expected error, got nil", tc.input)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("ParseSinceDuration(%q) unexpected error: %v", tc.input, err)
+			continue
+		}
+		if d.Seconds() != tc.wantSecs {
+			t.Errorf("ParseSinceDuration(%q) = %v, want %vs", tc.input, d, tc.wantSecs)
+		}
+	}
+}
+
+func TestExportJSON(t *testing.T) {
+	records := []Record{
+		{Timestamp: "2026-03-01 10:00:00", Command: "git status", RawTokens: 100, FilteredTokens: 20, SavingsPct: 80.0},
+		{Timestamp: "2026-03-02 11:00:00", Command: "docker ps", RawTokens: 50, FilteredTokens: 10, SavingsPct: 80.0},
+	}
+	stats := Stats{
+		TotalCommands:     2,
+		TotalSavedTokens:  120,
+		OverallSavingsPct: 80.0,
+	}
+
+	var buf bytes.Buffer
+	if err := ExportJSON(&buf, records, stats); err != nil {
+		t.Fatalf("ExportJSON failed: %v", err)
+	}
+
+	var out map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("ExportJSON produced invalid JSON: %v\noutput: %s", err, buf.String())
+	}
+
+	if _, ok := out["generated_at"]; !ok {
+		t.Error("missing generated_at field")
+	}
+	summary, ok := out["summary"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing or invalid summary field")
+	}
+	if int(summary["total_commands"].(float64)) != 2 {
+		t.Errorf("expected total_commands 2, got %v", summary["total_commands"])
+	}
+	history, ok := out["history"].([]interface{})
+	if !ok {
+		t.Fatal("missing or invalid history field")
+	}
+	if len(history) != 2 {
+		t.Errorf("expected 2 history records, got %d", len(history))
+	}
+}
+
+func TestExportCSV(t *testing.T) {
+	records := []Record{
+		{Timestamp: "2026-03-01 10:00:00", Command: "git status", RawTokens: 100, FilteredTokens: 20, SavingsPct: 80.0},
+		{Timestamp: "2026-03-02 11:00:00", Command: "docker ps", RawTokens: 50, FilteredTokens: 10, SavingsPct: 80.0},
+	}
+
+	var buf bytes.Buffer
+	if err := ExportCSV(&buf, records); err != nil {
+		t.Fatalf("ExportCSV failed: %v", err)
+	}
+
+	r := csv.NewReader(&buf)
+	rows, err := r.ReadAll()
+	if err != nil {
+		t.Fatalf("ExportCSV produced invalid CSV: %v\noutput: %s", err, buf.String())
+	}
+
+	if len(rows) != 3 { // header + 2 data rows
+		t.Fatalf("expected 3 rows (header + 2 data), got %d", len(rows))
+	}
+
+	header := rows[0]
+	expectedHeader := []string{"timestamp", "command", "raw_tokens", "compressed_tokens", "saved_tokens", "savings_pct"}
+	for i, col := range expectedHeader {
+		if i >= len(header) || header[i] != col {
+			t.Errorf("header[%d]: expected %q, got %q", i, col, header[i])
+		}
+	}
+
+	if rows[1][1] != "git status" {
+		t.Errorf("first data row command: expected 'git status', got %q", rows[1][1])
+	}
+	if rows[1][4] != "80" {
+		t.Errorf("first data row saved_tokens: expected '80', got %q", rows[1][4])
+	}
+	if rows[2][1] != "docker ps" {
+		t.Errorf("second data row command: expected 'docker ps', got %q", rows[2][1])
 	}
 }

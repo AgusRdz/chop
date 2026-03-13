@@ -66,6 +66,15 @@ func Init() error {
 		if dbErr != nil {
 			return
 		}
+		db.SetMaxOpenConns(1)
+		_, dbErr = db.Exec("PRAGMA journal_mode=WAL")
+		if dbErr != nil {
+			return
+		}
+		_, dbErr = db.Exec("PRAGMA busy_timeout=5000")
+		if dbErr != nil {
+			return
+		}
 		_, dbErr = db.Exec(`CREATE TABLE IF NOT EXISTS tracking (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			timestamp TEXT NOT NULL,

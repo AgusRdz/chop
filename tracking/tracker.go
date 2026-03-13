@@ -484,10 +484,12 @@ run 'chop gain --history' for command history`,
 }
 
 // FormatHistory formats history records for display.
-func FormatHistory(records []Record) string {
+// When verbose is false, long command strings are truncated to 50 characters.
+func FormatHistory(records []Record, verbose bool) string {
 	if len(records) == 0 {
 		return "no commands tracked yet"
 	}
+	const maxCmd = 50
 	var b strings.Builder
 	b.WriteString("recent commands:\n")
 	for _, r := range records {
@@ -495,8 +497,12 @@ func FormatHistory(records []Record) string {
 		if r.SavingsPct == 0 && r.RawTokens > 0 {
 			marker = "!"
 		}
-		b.WriteString(fmt.Sprintf(" %s %s  %-25s %5.1f%%  (%d -> %d tokens)\n",
-			marker, r.Timestamp, r.Command, r.SavingsPct, r.RawTokens, r.FilteredTokens))
+		cmd := r.Command
+		if !verbose && len(cmd) > maxCmd {
+			cmd = cmd[:maxCmd-3] + "..."
+		}
+		b.WriteString(fmt.Sprintf(" %s %s  %-50s %5.1f%%  (%d -> %d tokens)\n",
+			marker, r.Timestamp, cmd, r.SavingsPct, r.RawTokens, r.FilteredTokens))
 	}
 	b.WriteString("\n ! = 0% savings (filter may need improvement)\n")
 	return b.String()

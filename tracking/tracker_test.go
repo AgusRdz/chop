@@ -247,7 +247,7 @@ func TestFormatHistory(t *testing.T) {
 	records := []Record{
 		{Timestamp: "2026-03-05 14:23:00", Command: "git status", RawTokens: 67, FilteredTokens: 8, SavingsPct: 88.1},
 	}
-	out := FormatHistory(records)
+	out := FormatHistory(records, false)
 	if !strings.Contains(out, "git status") {
 		t.Errorf("missing command in history: %s", out)
 	}
@@ -496,7 +496,7 @@ func TestDeleteCommand(t *testing.T) {
 }
 
 func TestFormatHistoryEmpty(t *testing.T) {
-	out := FormatHistory(nil)
+	out := FormatHistory(nil, false)
 	if out != "no commands tracked yet" {
 		t.Errorf("unexpected empty history: %s", out)
 	}

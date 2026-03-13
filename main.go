@@ -554,7 +554,7 @@ func runGain(args []string) {
 			fmt.Fprintf(os.Stderr, "chop: failed to read history: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Print(tracking.FormatHistory(records))
+		fmt.Print(tracking.FormatHistory(records, verbose))
 		return
 	}
 
@@ -1325,10 +1325,11 @@ Usage:
 
 Subcommands:
   gain                        Show token savings stats
-  gain --history              Recent commands with savings (default: last 20)
+  gain --history              Recent commands with savings (default: last 20, truncated)
   gain --history --limit N    Show last N commands
   gain --history --all        Show all commands in range
   gain --history --since <d>  History filtered to a time window (combinable with --limit/--all)
+  gain --history --verbose    Show full untruncated command strings
   gain --summary              Per-command savings breakdown
   gain --unchopped            Commands never compressed (new filter candidates)
   gain --unchopped --skip X   Mark command X as intentionally not needing a filter

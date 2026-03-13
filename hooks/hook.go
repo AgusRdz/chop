@@ -207,11 +207,45 @@ func shouldWrap(command string) bool {
 		}
 	}
 	baseCmd := command
-	if idx := strings.IndexByte(command, ' '); idx != -1 {
-		baseCmd = command[:idx]
+
+	// Find the end of the base command, respecting quotes
+	state := quoteNone
+	endIdx := len(command)
+	for i := 0; i < len(command); i++ {
+		ch := command[i]
+		switch state {
+		case quoteNone:
+			if ch == '\'' {
+				state = quoteSingle
+			} else if ch == '"' {
+				state = quoteDouble
+			} else if ch == ' ' {
+				endIdx = i
+				goto foundEnd
+			}
+		case quoteSingle:
+			if ch == '\'' {
+				state = quoteNone
+			}
+		case quoteDouble:
+			if ch == '\\' && i+1 < len(command) {
+				i++ // skip escaped char
+			} else if ch == '"' {
+				state = quoteNone
+			}
+		}
 	}
-	if lastSlash := strings.LastIndexByte(baseCmd, '/'); lastSlash != -1 {
+foundEnd:
+	baseCmd = command[:endIdx]
+
+	if len(baseCmd) >= 2 && ((baseCmd[0] == '"' && baseCmd[len(baseCmd)-1] == '"') || (baseCmd[0] == '\'' && baseCmd[len(baseCmd)-1] == '\'')) {
+		baseCmd = baseCmd[1 : len(baseCmd)-1]
+	}
+	if lastSlash := strings.LastIndexAny(baseCmd, `/\`); lastSlash != -1 {
 		baseCmd = baseCmd[lastSlash+1:]
+	}
+	if strings.HasSuffix(strings.ToLower(baseCmd), ".exe") {
+		baseCmd = baseCmd[:len(baseCmd)-4]
 	}
 	return supportedCommands[baseCmd]
 }

@@ -40,6 +40,14 @@ func TestSupportedCommandGetsPrepended(t *testing.T) {
 		{"cat /var/log/syslog", "chop cat /var/log/syslog"},
 		{"tail -f /var/log/app.log", "chop tail -f /var/log/app.log"},
 		{"find . -name '*.go'", "chop find . -name '*.go'"},
+		{`"/usr/bin/npm" install`, `chop "/usr/bin/npm" install`},
+		{`'/usr/bin/npm' install`, `chop '/usr/bin/npm' install`},
+		{`"C:\Program Files\nodejs\npm.exe" install`, `chop "C:\Program Files\nodejs\npm.exe" install`},
+		{`'C:\Program Files\nodejs\npm.exe' install`, `chop 'C:\Program Files\nodejs\npm.exe' install`},
+		{`npm.exe install`, `chop npm.exe install`},
+		{`"npm.exe" install`, `chop "npm.exe" install`},
+		{`"npm" install`, `chop "npm" install`},
+		{`'npm' install`, `chop 'npm' install`},
 	}
 
 	for _, tt := range tests {

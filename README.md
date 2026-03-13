@@ -332,6 +332,24 @@ chop - token savings report
   total: 1,203 commands, 456,789 tokens saved (73.2% avg)
 ```
 
+### The `!` marker in history
+
+`chop gain --history` marks any command with `!` when it produced 0% savings. This happens in two legitimate cases:
+
+- **Write commands** (`git commit`, `git push`, `git add`, `git tag`, etc.) — these produce near-zero output by design. There is nothing to compress; 0% is expected and correct.
+- **Already-minimal output** — a `git log --oneline -5` or a `find` that returned one result is already compact. No filter can improve on it.
+
+If these entries feel noisy, you can delete them permanently from your history:
+
+```bash
+chop gain --delete "git push"
+chop gain --delete "git commit"
+chop gain --delete "git add"
+chop gain --delete "git tag"
+```
+
+This removes all tracked records for that command key and hides it from future reports.
+
 ### Unchopped Report
 
 Identify commands that pass through without compression — potential candidates for new filters:

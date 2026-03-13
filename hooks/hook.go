@@ -147,6 +147,11 @@ func processHookInput(input []byte) ([]byte, bool, string) {
 		return nil, false, ""
 	}
 
+	// Global kill switch — pass through everything when disabled.
+	if IsDisabledGlobally() {
+		return nil, false, ""
+	}
+
 	var ti toolInput
 	if err := json.Unmarshal(h.ToolInput, &ti); err != nil {
 		return nil, false, ""

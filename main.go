@@ -84,6 +84,29 @@ func main() {
 	case "reset":
 		cleanup.Reset()
 		return
+	case "disable":
+		if hooks.IsDisabledGlobally() {
+			fmt.Println("chop is already disabled")
+			return
+		}
+		if err := hooks.Disable(); err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to disable: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("chop disabled — hook will pass through all commands")
+		fmt.Println("run 'chop enable' to resume")
+		return
+	case "enable":
+		if !hooks.IsDisabledGlobally() {
+			fmt.Println("chop is already enabled")
+			return
+		}
+		if err := hooks.Enable(); err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to enable: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("chop enabled — hook will compress commands again")
+		return
 	case "doctor":
 		runDoctor()
 		return
@@ -1132,6 +1155,13 @@ func runDoctor() {
 		}
 	}
 
+	// 4. Check if chop is disabled
+	if hooks.IsDisabledGlobally() {
+		fmt.Println("[!] chop is disabled — hook is passing through all commands")
+		fmt.Println("    fix: chop enable")
+		issues++
+	}
+
 	if issues == 0 {
 		fmt.Println("\nall good!")
 	} else {
@@ -1190,6 +1220,8 @@ Subcommands:
   local add "git diff"        Disable a command in this project
   local remove "git diff"     Re-enable a command in this project
   local clear                 Remove local config
+  disable                     Bypass chop — hook passes through all commands
+  enable                      Resume chop — hook compresses commands again
   doctor                      Check and fix common issues (hook path, install location)
   changelog                   Show changes in the current version
   changelog --full            Show full changelog history

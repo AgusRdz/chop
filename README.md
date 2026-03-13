@@ -43,10 +43,10 @@ subsequent API call. A bloated command result compounds across turns.
 
 ```mermaid
 graph TD
-    T1["Turn 1\ndocker ps → 850 tokens added"]
-    T2["Turn 2\n+850 tokens carried forward"]
-    T3["Turn 3\n+850 tokens carried forward"]
-    TN["Turn N\n+850 tokens carried forward"]
+    T1["Turn 1: docker ps → 850 tokens added"]
+    T2["Turn 2: +850 tokens carried forward"]
+    T3["Turn 3: +850 tokens carried forward"]
+    TN["Turn N: +850 tokens carried forward"]
     COMPACT["Compaction triggered early ⚠️"]
 
     T1 --> T2 --> T3 --> TN --> COMPACT
@@ -56,10 +56,10 @@ graph TD
 
 ```mermaid
 graph TD
-    T1C["Turn 1\nchop docker ps → 250 tokens added"]
-    T2C["Turn 2\n+250 tokens carried forward"]
-    T3C["Turn 3\n+250 tokens carried forward"]
-    TNC["Turn N\n+250 tokens carried forward"]
+    T1C["Turn 1: chop docker ps → 250 tokens added"]
+    T2C["Turn 2: +250 tokens carried forward"]
+    T3C["Turn 3: +250 tokens carried forward"]
+    TNC["Turn N: +250 tokens carried forward"]
     SESSION["Longer session, more context budget ✅"]
 
     T1C --> T2C --> T3C --> TNC --> SESSION

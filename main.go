@@ -177,13 +177,15 @@ func main() {
 		fullCmd = command + " " + strings.Join(args, " ")
 	}
 
-	// Skip filtering if command is disabled in config
 	subCmd := ""
 	if len(args) > 0 {
 		subCmd = args[0]
 	}
 	var finalOutput string
-	if cfg.IsDisabled(command, subCmd) {
+	// Never compress failed command output — error messages must be preserved in full.
+	if exitCode != 0 {
+		finalOutput = raw
+	} else if cfg.IsDisabled(command, subCmd) {
 		finalOutput = raw
 	} else {
 		filter := filters.Get(command, args)

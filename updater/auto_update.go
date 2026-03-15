@@ -207,6 +207,12 @@ func RunBackgroundUpdate(currentVersion string) {
 		return
 	}
 
+	// Verify checksum before staging the pending update
+	if err := verifyChecksum(tmpPath, latest, binaryName); err != nil {
+		os.Remove(tmpPath)
+		return
+	}
+
 	pending, err := pendingUpdatePath()
 	if err != nil {
 		os.Remove(tmpPath)

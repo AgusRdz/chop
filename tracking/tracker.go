@@ -538,10 +538,13 @@ func FormatSummary(summaries []CommandSummary) string {
 }
 
 func formatNum(n int) string {
+	if n < 0 {
+		return "-" + formatNum(-n)
+	}
 	if n < 1000 {
 		return fmt.Sprintf("%d", n)
 	}
-	return fmt.Sprintf("%d,%03d", n/1000, n%1000)
+	return formatNum(n/1000) + fmt.Sprintf(",%03d", n%1000)
 }
 
 // GetStatsSince returns aggregate stats for records within the last d duration.

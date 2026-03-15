@@ -712,6 +712,33 @@ func TestFormatSummary(t *testing.T) {
 	}
 }
 
+func TestFormatNum(t *testing.T) {
+	tests := []struct {
+		input int
+		want  string
+	}{
+		{0, "0"},
+		{1, "1"},
+		{999, "999"},
+		{1000, "1,000"},
+		{12345, "12,345"},
+		{999999, "999,999"},
+		{1000000, "1,000,000"},
+		{1234567, "1,234,567"},
+		{999999999, "999,999,999"},
+		{1234567890, "1,234,567,890"},
+		{-1, "-1"},
+		{-1234, "-1,234"},
+		{-1234567, "-1,234,567"},
+	}
+	for _, tc := range tests {
+		got := formatNum(tc.input)
+		if got != tc.want {
+			t.Errorf("formatNum(%d) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
 func TestTrackingSkip(t *testing.T) {
 	setupTestDB(t)
 

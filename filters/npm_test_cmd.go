@@ -41,7 +41,7 @@ func filterNpmTestCmd(raw string) (string, error) {
 	totalSkipped := 0
 	foundSummary := false
 
-	for i, line := range lines {
+	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
 		// Collect summary section lines
@@ -101,7 +101,6 @@ func filterNpmTestCmd(raw string) (string, error) {
 			continue
 		}
 
-		_ = i // avoid unused variable
 	}
 
 	// If no summary found, try to count from raw output

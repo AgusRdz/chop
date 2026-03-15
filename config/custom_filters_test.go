@@ -256,3 +256,53 @@ filters:
 		t.Error("missing local filter 'local-tool'")
 	}
 }
+
+func TestFiltersConfigPath(t *testing.T) {
+	// Test with XDG_CONFIG_HOME
+	oldXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", "/tmp/xdg")
+	defer os.Setenv("XDG_CONFIG_HOME", oldXDG)
+
+	expected := filepath.Join("/tmp/xdg", "chop", "filters.yml")
+	if p := FiltersConfigPath(); p != expected {
+		t.Errorf("expected %s, got %s", expected, p)
+	}
+
+	// Test without XDG_CONFIG_HOME
+	os.Unsetenv("XDG_CONFIG_HOME")
+	p := FiltersConfigPath()
+	if filepath.Base(p) != "filters.yml" {
+		t.Errorf("expected filters.yml, got %s", filepath.Base(p))
+	}
+}
+
+func TestLoadCustomFilters(t *testing.T) {
+	// Setup a temporary XDG_CONFIG_HOME
+	tmpDir := t.TempDir()
+	oldXDG := os.Getenv("XDG_CONFIG_HOME")
+	os.Setenv("XDG_CONFIG_HOME", tmpDir)
+	defer os.Setenv("XDG_CONFIG_HOME", oldXDG)
+
+	// Create the expected config file path
+	configPath := filepath.Join(tmpDir, "chop", "filters.yml")
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	content := `
+filters:
+  "mycli build":
+    keep: ["ERROR"]
+`
+	if err := os.WriteFile(configPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result := LoadCustomFilters()
+	if len(result) != 1 {
+		t.Fatalf("expected 1 filter, got %d", len(result))
+	}
+	if _, ok := result["mycli build"]; !ok {
+		t.Error("missing 'mycli build' filter")
+	}
+}

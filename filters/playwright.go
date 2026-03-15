@@ -7,10 +7,12 @@ import (
 )
 
 var (
-	rePlaywrightPassLine   = regexp.MustCompile(`^\s+[✓✔]\s+\d+\s`)
-	rePlaywrightFailLine   = regexp.MustCompile(`^\s+[✗✘]\s+\d+\s`)
-	rePlaywrightBlockStart = regexp.MustCompile(`^\s+\d+\)\s+\S`)
-	rePlaywrightSummary    = regexp.MustCompile(`(\d+) tests? \((\d+) failed\)|(\d+) passed \(|(\d+) tests? passed`)
+	rePlaywrightPassLine    = regexp.MustCompile(`^\s+[✓✔]\s+\d+\s`)
+	rePlaywrightFailLine    = regexp.MustCompile(`^\s+[✗✘]\s+\d+\s`)
+	rePlaywrightBlockStart  = regexp.MustCompile(`^\s+\d+\)\s+\S`)
+	rePlaywrightSummary     = regexp.MustCompile(`(\d+) tests? \((\d+) failed\)|(\d+) passed \(|(\d+) tests? passed`)
+	rePlaywrightTestsFailed = regexp.MustCompile(`(\d+) tests? \((\d+) failed\)`)
+	rePlaywrightPassed      = regexp.MustCompile(`(\d+) passed`)
 )
 
 func filterPlaywright(raw string) (string, error) {
@@ -66,13 +68,13 @@ func filterPlaywright(raw string) (string, error) {
 	if total == 0 {
 		for _, line := range lines {
 			t := strings.TrimSpace(line)
-			if m := regexp.MustCompile(`(\d+) tests? \((\d+) failed\)`).FindStringSubmatch(t); m != nil {
+			if m := rePlaywrightTestsFailed.FindStringSubmatch(t); m != nil {
 				fmt.Sscanf(m[1], "%d", &total)
 				fmt.Sscanf(m[2], "%d", &failed)
 				passed = total - failed
 				break
 			}
-			if m := regexp.MustCompile(`(\d+) passed`).FindStringSubmatch(t); m != nil {
+			if m := rePlaywrightPassed.FindStringSubmatch(t); m != nil {
 				fmt.Sscanf(m[1], "%d", &passed)
 				total = passed
 			}

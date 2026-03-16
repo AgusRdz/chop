@@ -1,9 +1,11 @@
 package updater
 
 import (
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,9 +13,17 @@ import (
 	"os/exec"
 	"runtime"
 	"strings"
+	"time"
 )
 
 const repo = "AgusRdz/chop"
+
+var httpClient = &http.Client{
+	Timeout: 30 * time.Second,
+}
+
+// publicKey is the hex-encoded Ed25519 public key used to verify release signatures.
+const publicKey = "219d215ae55c0b8401a42cf8e3b84cd22ccdc21f880fb0405cd6daca3c03d94e"
 
 type ghRelease struct {
 	TagName string `json:"tag_name"`
@@ -45,15 +55,23 @@ func Run(currentVersion string) {
 		os.Exit(1)
 	}
 
-	if err := download(url, exe); err != nil {
+	tmpPath := exe + ".tmp"
+	if err := download(url, tmpPath); err != nil {
 		fmt.Fprintf(os.Stderr, "chop: update failed: %v\n", err)
+		os.Remove(tmpPath)
 		os.Exit(1)
 	}
 
-	// Verify checksum (best-effort — skip if checksums.txt not published yet)
-	if err := verifyChecksum(exe, latest, binaryName); err != nil {
-		fmt.Fprintf(os.Stderr, "chop: checksum verification failed: %v\n", err)
-		fmt.Fprintln(os.Stderr, "chop: the downloaded binary may be corrupted — reverting")
+	// Verify checksum and signature before replacing the binary
+	if err := verifyChecksum(tmpPath, latest, binaryName); err != nil {
+		fmt.Fprintf(os.Stderr, "chop: verification failed: %v\n", err)
+		os.Remove(tmpPath)
+		os.Exit(1)
+	}
+
+	if err := replaceBinary(exe, tmpPath); err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to replace binary: %v\n", err)
+		os.Remove(tmpPath)
 		os.Exit(1)
 	}
 
@@ -71,7 +89,7 @@ func Run(currentVersion string) {
 
 func latestVersion() (string, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo)
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return "", err
 	}
@@ -99,7 +117,7 @@ func buildBinaryName() string {
 }
 
 func download(url, destPath string) error {
-	resp, err := http.Get(url)
+	resp, err := httpClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("download failed: %w", err)
 	}
@@ -109,51 +127,21 @@ func download(url, destPath string) error {
 		return fmt.Errorf("download returned %d for %s", resp.StatusCode, url)
 	}
 
-	// Write to temp file next to the binary, computing SHA256 as we go
-	tmpPath := destPath + ".tmp"
-	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	f, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
 	if err != nil {
-		return fmt.Errorf("failed to create temp file: %w", err)
+		return fmt.Errorf("failed to create file: %w", err)
 	}
+	defer f.Close()
 
-	h := sha256.New()
-	_, err = io.Copy(f, io.TeeReader(resp.Body, h))
-	f.Close()
+	_, err = io.Copy(f, resp.Body)
 	if err != nil {
-		os.Remove(tmpPath)
 		return fmt.Errorf("failed to write binary: %w", err)
-	}
-
-	// On Windows, can't replace a running binary directly.
-	// Rename current to .old, rename .tmp to current.
-	oldPath := destPath + ".old"
-	os.Remove(oldPath)
-
-	if runtime.GOOS == "windows" {
-		if err := os.Rename(destPath, oldPath); err != nil && !os.IsNotExist(err) {
-			os.Remove(tmpPath)
-			return fmt.Errorf("failed to move old binary: %w", err)
-		}
-	}
-
-	if err := os.Rename(tmpPath, destPath); err != nil {
-		// Try to restore old binary on failure
-		if runtime.GOOS == "windows" {
-			os.Rename(oldPath, destPath)
-		}
-		os.Remove(tmpPath)
-		return fmt.Errorf("failed to replace binary: %w", err)
-	}
-
-	// Clean up old binary (best-effort, may fail on Windows if still running)
-	if runtime.GOOS != "windows" {
-		os.Remove(oldPath)
 	}
 
 	// Verify it's not a 404 HTML page
 	info, err := os.Stat(destPath)
 	if err != nil {
-		return fmt.Errorf("failed to verify new binary: %w", err)
+		return fmt.Errorf("failed to verify downloaded file: %w", err)
 	}
 	if info.Size() < 1024 {
 		return fmt.Errorf("downloaded file too small (%d bytes), release may not exist", info.Size())
@@ -167,13 +155,27 @@ func IsDev(version string) bool {
 	return version == "dev" || strings.Contains(version, "-dirty")
 }
 
-// verifyChecksum fetches checksums.txt from the release and verifies the binary.
-// Returns nil if verification passes or if checksums.txt is not available (graceful fallback).
+// verifyChecksum fetches checksums.txt and checksums.txt.sig from the release,
+// verifies the signature of checksums.txt using the embedded public key,
+// and then verifies the SHA256 hash of the binary.
 func verifyChecksum(binaryPath, version, binaryName string) error {
-	expected, err := fetchExpectedChecksum(version, binaryName)
+	checksums, err := fetchReleaseFile(version, "checksums.txt")
 	if err != nil {
-		// checksums.txt not published yet — skip verification silently
-		return nil
+		return fmt.Errorf("failed to fetch checksums.txt: %w", err)
+	}
+
+	signature, err := fetchReleaseFile(version, "checksums.txt.sig")
+	if err != nil {
+		return fmt.Errorf("failed to fetch checksums.txt.sig: %w", err)
+	}
+
+	if err := verifySignature(checksums, signature); err != nil {
+		return fmt.Errorf("invalid signature for checksums.txt: %w", err)
+	}
+
+	expected, err := parseChecksum(string(checksums), binaryName)
+	if err != nil {
+		return err
 	}
 
 	actual, err := hashFile(binaryPath)
@@ -187,25 +189,38 @@ func verifyChecksum(binaryPath, version, binaryName string) error {
 	return nil
 }
 
-// fetchExpectedChecksum downloads checksums.txt and extracts the hash for binaryName.
-func fetchExpectedChecksum(version, binaryName string) (string, error) {
-	url := fmt.Sprintf("https://github.com/%s/releases/download/%s/checksums.txt", repo, version)
-	resp, err := http.Get(url)
+func verifySignature(message, signature []byte) error {
+	pub, err := hex.DecodeString(publicKey)
 	if err != nil {
-		return "", err
+		return fmt.Errorf("invalid public key: %w", err)
+	}
+
+	sig, err := hex.DecodeString(strings.TrimSpace(string(signature)))
+	if err != nil {
+		return fmt.Errorf("invalid signature format: %w", err)
+	}
+
+	if !ed25519.Verify(pub, message, sig) {
+		return errors.New("ED25519 signature verification failed")
+	}
+
+	return nil
+}
+
+// fetchReleaseFile downloads a file from the release.
+func fetchReleaseFile(version, filename string) ([]byte, error) {
+	url := fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", repo, version, filename)
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("checksums.txt returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("%s returned %d", filename, resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return parseChecksum(string(body), binaryName)
+	return io.ReadAll(resp.Body)
 }
 
 // parseChecksum extracts the SHA256 hash for binaryName from sha256sum-formatted text.
@@ -227,6 +242,27 @@ func parseChecksum(checksums, binaryName string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no checksum found for %s", binaryName)
+}
+
+// replaceBinary atomically replaces the binary at destPath with srcPath.
+func replaceBinary(destPath, srcPath string) error {
+	if runtime.GOOS == "windows" {
+		// Windows can't replace a running binary - rename dance
+		oldPath := destPath + ".old"
+		os.Remove(oldPath)
+		if err := os.Rename(destPath, oldPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		if err := os.Rename(srcPath, destPath); err != nil {
+			os.Rename(oldPath, destPath) // restore
+			return err
+		}
+		os.Remove(oldPath)
+		return nil
+	}
+
+	// Linux/macOS: rename works even on running binaries
+	return os.Rename(srcPath, destPath)
 }
 
 // hashFile computes the SHA256 hex digest of a file.

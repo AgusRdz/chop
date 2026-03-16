@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -123,27 +122,6 @@ func ApplyPendingUpdate(currentVersion string) {
 
 	os.Remove(pending)
 	fmt.Fprintf(os.Stderr, "chop: auto-updated %s -> %s\n", currentVersion, newVersion)
-}
-
-// replaceBinary atomically replaces the binary at destPath with srcPath.
-func replaceBinary(destPath, srcPath string) error {
-	if runtime.GOOS == "windows" {
-		// Windows can't replace a running binary - rename dance
-		oldPath := destPath + ".old"
-		os.Remove(oldPath)
-		if err := os.Rename(destPath, oldPath); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		if err := os.Rename(srcPath, destPath); err != nil {
-			os.Rename(oldPath, destPath) // restore
-			return err
-		}
-		os.Remove(oldPath)
-		return nil
-	}
-
-	// Linux/macOS: rename works even on running binaries
-	return os.Rename(srcPath, destPath)
 }
 
 // BackgroundCheck spawns a detached subprocess to check for updates.

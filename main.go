@@ -246,6 +246,8 @@ func main() {
 	command := os.Args[1]
 	args := os.Args[2:]
 
+	validateCommand(command)
+
 	// Load config: global + local overlay from cwd
 	cwd, _ := os.Getwd()
 	cfg := config.LoadWithLocal(cwd)
@@ -326,6 +328,8 @@ func runCapture(args []string) {
 
 	command := args[0]
 	cmdArgs := args[1:]
+
+	validateCommand(command)
 
 	cmd := exec.Command(command, cmdArgs...)
 	cmd.Stdin = os.Stdin
@@ -998,6 +1002,9 @@ func runDiff(args []string) {
 	} else {
 		command = args[0]
 		cmdArgs = args[1:]
+
+		validateCommand(command)
+
 		cmd := exec.Command(command, cmdArgs...)
 		cmd.Stdin = os.Stdin
 		output, err := cmd.CombinedOutput()
@@ -1593,6 +1600,16 @@ func runDoctor() {
 		fmt.Println("\nall good!")
 	} else {
 		fmt.Printf("\n%d issue(s) found\n", issues)
+	}
+}
+
+// validateCommand checks if a command name is safe to execute and exits if not.
+// Blocks shell metacharacters to prevent confusion and protect against
+// potential shell-based wrappers that might be used to invoke chop.
+func validateCommand(cmd string) {
+	if strings.ContainsAny(cmd, ";|&><`$()\n\r") {
+		fmt.Fprintf(os.Stderr, "chop: invalid command name %q\n", cmd)
+		os.Exit(1)
 	}
 }
 

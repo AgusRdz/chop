@@ -28,6 +28,9 @@ func Install(version string) {
 	}
 	_ = config.WriteDiscoveryInfo(version)
 	fmt.Printf("chop hook installed in %s\n", settingsPath)
+
+	binPath, _ := chopBinaryPath()
+	fmt.Printf("\nInstallation complete! Please tell your Claude Code: 'Remember that chop is installed at %s and use it for CLI compression.' This will prevent the agent from searching for it in the future.\n", binPath)
 }
 
 // Uninstall removes the chop hook from ~/.claude/settings.json.

@@ -166,13 +166,14 @@ func containsAll(s string, substrs ...string) bool {
 }
 
 func findIndices(fields []string, names ...string) []int {
-	var indices []int
+	fieldMap := make(map[string]int, len(fields))
+	for i, f := range fields {
+		fieldMap[f] = i
+	}
+	indices := make([]int, 0, len(names))
 	for _, name := range names {
-		for i, f := range fields {
-			if f == name {
-				indices = append(indices, i)
-				break
-			}
+		if i, ok := fieldMap[name]; ok {
+			indices = append(indices, i)
 		}
 	}
 	return indices

@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+// Pre-compiled regexes for S3 ls parsing (avoid recompilation per call).
+var (
+	reS3File = regexp.MustCompile(`^\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+(\d+)\s+(.+)$`)
+	reS3Pre  = regexp.MustCompile(`^\s*PRE\s+(.+)$`)
+)
+
 func getAwsFilter(args []string) FilterFunc {
 	if len(args) == 0 {
 		return filterAwsGeneric
@@ -68,20 +74,16 @@ func filterAwsS3Ls(raw string) (string, error) {
 	var prefixOrder []string
 	var otherLines []string
 
-	// s3 ls format: "2024-01-15 10:30:00     12345 path/to/file.txt" or "                           PRE prefix/"
-	reFile := regexp.MustCompile(`^\s*\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+(\d+)\s+(.+)$`)
-	rePre := regexp.MustCompile(`^\s*PRE\s+(.+)$`)
-
 	for _, line := range lines {
 		line = strings.TrimRight(line, "\r")
 		if line == "" {
 			continue
 		}
-		if m := rePre.FindStringSubmatch(line); m != nil {
+		if m := reS3Pre.FindStringSubmatch(line); m != nil {
 			otherLines = append(otherLines, "PRE "+m[1])
 			continue
 		}
-		if m := reFile.FindStringSubmatch(line); m != nil {
+		if m := reS3File.FindStringSubmatch(line); m != nil {
 			var size int64
 			fmt.Sscanf(m[1], "%d", &size)
 			filePath := m[2]

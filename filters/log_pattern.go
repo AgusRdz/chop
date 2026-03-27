@@ -34,14 +34,18 @@ var patternRegexes = []*regexp.Regexp{
 	regexp.MustCompile(`\b\d+(\.\d+)?\b`),
 }
 
+// keyValuePatternIdx is the index of the key=value regex in patternRegexes,
+// used to avoid per-line string comparison in patternFingerprint.
+const keyValuePatternIdx = 6
+
 const placeholder = "<*>"
 
 // patternFingerprint replaces variable parts of a log line with <*> placeholders,
 // producing a structural "fingerprint" for grouping similar lines.
 func patternFingerprint(line string) string {
 	result := line
-	for _, re := range patternRegexes {
-		if re.String() == `(\w+=)\S+` {
+	for i, re := range patternRegexes {
+		if i == keyValuePatternIdx {
 			// Special handling: preserve the key= part
 			result = re.ReplaceAllString(result, "${1}"+placeholder)
 		} else {
@@ -89,7 +93,7 @@ func compressLogPatterns(lines []string, isImportantFn func(string) bool) (strin
 		isImportant bool
 	}
 
-	var infos []lineInfo
+	infos := make([]lineInfo, 0, len(lines))
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {

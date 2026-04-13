@@ -581,6 +581,126 @@ func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
+// ExtractWrappedHooks parses a chop-generated wrapper script and returns the
+// competing hook commands that were embedded in it via _run_hook lines.
+// Returns nil if the file does not exist or contains no _run_hook lines.
+func ExtractWrappedHooks(scriptPath string) ([]string, error) {
+	data, err := os.ReadFile(scriptPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var cmds []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "_run_hook ") {
+			continue
+		}
+		arg := strings.TrimPrefix(line, "_run_hook ")
+		// Unquote single-quoted argument (reverse of shellQuote)
+		if len(arg) >= 2 && arg[0] == '\'' && arg[len(arg)-1] == '\'' {
+			arg = arg[1 : len(arg)-1]
+			arg = strings.ReplaceAll(arg, "'\\''", "'")
+		}
+		cmds = append(cmds, arg)
+	}
+	return cmds, nil
+}
+
+// UnwrapHooks reverses fix-hooks: reinstalls the direct chop hook in settings.json
+// and removes chop-wrapper.sh. Returns the list of commands that were in the wrapper
+// so the caller can inform the user what to re-enable elsewhere.
+func UnwrapHooks(version string) ([]string, error) {
+	wrapperPath, err := WrapperScriptPath()
+	if err != nil {
+		return nil, err
+	}
+
+	wrapped, err := ExtractWrappedHooks(wrapperPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read wrapper script: %w", err)
+	}
+
+	// Remove all chop-aware hooks from settings.json before reinstalling the direct hook.
+	// installWithCommand only recognises strict chop hooks, so wrapper entries linger
+	// alongside the new entry unless we remove them first.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+	if err := removeChopAwareHooks(settingsPath); err != nil {
+		return nil, fmt.Errorf("failed to remove wrapper hook: %w", err)
+	}
+
+	// Reinstall direct chop hook
+	Install(version)
+
+	// Remove the wrapper script if it exists
+	if _, err := os.Stat(wrapperPath); err == nil {
+		_ = os.Remove(wrapperPath)
+	}
+
+	return wrapped, nil
+}
+
+// removeChopAwareHooks strips all chop-aware entries (direct or wrapper) from the
+// Bash PreToolUse matcher in settings.json. Called before reinstalling the direct hook.
+func removeChopAwareHooks(settingsPath string) error {
+	settings, err := readSettings(settingsPath)
+	if err != nil {
+		return err
+	}
+	hooksRaw, ok := settings["hooks"]
+	if !ok {
+		return nil
+	}
+	hooksMap, ok := hooksRaw.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	ptuRaw, ok := hooksMap["PreToolUse"]
+	if !ok {
+		return nil
+	}
+	ptu, ok := ptuRaw.([]interface{})
+	if !ok {
+		return nil
+	}
+
+	newPTU := make([]interface{}, 0, len(ptu))
+	for _, entry := range ptu {
+		m, ok := entry.(map[string]interface{})
+		if !ok {
+			newPTU = append(newPTU, entry)
+			continue
+		}
+		if matcher, _ := m["matcher"].(string); matcher != "Bash" {
+			newPTU = append(newPTU, entry)
+			continue
+		}
+		hooksArrayRaw, _ := m["hooks"].([]interface{})
+		newHooks := make([]interface{}, 0, len(hooksArrayRaw))
+		for _, h := range hooksArrayRaw {
+			hMap, ok := h.(map[string]interface{})
+			if !ok || isChopAwareHook(hMap) {
+				continue
+			}
+			newHooks = append(newHooks, h)
+		}
+		if len(newHooks) > 0 {
+			m["hooks"] = newHooks
+			newPTU = append(newPTU, m)
+		}
+	}
+
+	hooksMap["PreToolUse"] = newPTU
+	settings["hooks"] = hooksMap
+	return writeSettings(settingsPath, settings)
+}
+
 func installTo(settingsPath string) error {
 	hookCmd, err := buildHookCommand()
 	if err != nil {

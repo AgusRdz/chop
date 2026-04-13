@@ -137,6 +137,9 @@ func main() {
 	case "fix-hooks":
 		runFixHooks()
 		return
+	case "unwrap-hooks":
+		runUnwrapHooks()
+		return
 	case "filter":
 		runFilter(os.Args[2:])
 		return
@@ -2227,6 +2230,34 @@ func runFixHooks() {
 		fmt.Println("Invalid choice. Run `chop fix-hooks` again.")
 		os.Exit(1)
 	}
+}
+
+func runUnwrapHooks() {
+	installed, _ := hooks.IsInstalled()
+	if !installed && !hooks.HasChopAwareHook() {
+		fmt.Println("no chop hook detected — nothing to unwrap")
+		return
+	}
+
+	wrapped, err := hooks.UnwrapHooks(version)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "chop: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("chop hook restored to standard install")
+	fmt.Println("chop-wrapper.sh removed")
+
+	if len(wrapped) > 0 {
+		fmt.Println()
+		fmt.Println("The following hooks were inside the wrapper — re-enable them manually in their plugin hooks.json:")
+		for _, cmd := range wrapped {
+			fmt.Printf("  - %s\n", cmd)
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("Run `chop doctor` to verify.")
 }
 
 func runCompletion(args []string) {

@@ -490,8 +490,8 @@ func TestFindConflictingBashHooks_PluginConflict(t *testing.T) {
 
 	// Simulate a plugin with a Bash PreToolUse hook.
 	pluginHooksPath := filepath.Join(home, ".claude", "plugins", "marketplaces",
-		"dx-claude-code", "plugins", "dx-foundations", "hooks", "hooks.json")
-	writePluginHooksJSON(t, pluginHooksPath, "/path/to/verify-branch.sh")
+		"some-marketplace", "plugins", "some-plugin", "hooks", "hooks.json")
+	writePluginHooksJSON(t, pluginHooksPath, "/path/to/competing-hook.sh")
 
 	conflicts, err := findConflictingBashHooksIn(home)
 	if err != nil {
@@ -517,7 +517,7 @@ func TestFindConflictingBashHooks_EmptyPluginPreToolUse(t *testing.T) {
 
 	// Plugin with PreToolUse:[] — the fixed state; should not be reported as a conflict.
 	pluginHooksPath := filepath.Join(home, ".claude", "plugins", "cache",
-		"dx-claude-code", "dx-foundations", "abc123", "hooks", "hooks.json")
+		"some-marketplace", "some-plugin", "hash1234", "hooks", "hooks.json")
 	if err := os.MkdirAll(filepath.Dir(pluginHooksPath), 0o700); err != nil {
 		t.Fatalf("failed to create dir: %v", err)
 	}

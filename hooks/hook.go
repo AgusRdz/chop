@@ -42,7 +42,7 @@ var shellBuiltins = []string{
 
 // pipeRedirectOperators make wrapping ambiguous — skip the entire command.
 // File redirects always have surrounding spaces ("> file", ">> file", "< file").
-// fd-style redirects like "2>&1" intentionally do not match so they can be wrapped.
+// fd-style redirects like "2>&1" intentionally do not match so they can be wrapped (and later stripped).
 var pipeRedirectOperators = []string{" | ", " > ", " >> ", " < "}
 
 // logicalSeparators chain independent commands — split and wrap each segment.
@@ -210,7 +210,7 @@ func rewriteCommand(command string) (string, bool, string) {
 			for i, seg := range segments {
 				seg = strings.TrimSpace(seg)
 				if shouldWrap(seg) {
-					result[i] = "chop " + seg
+					result[i] = "chop " + stripStderrRedirect(seg)
 					modified = true
 				} else {
 					result[i] = seg
@@ -249,7 +249,14 @@ func rewriteCommand(command string) (string, bool, string) {
 		return "", false, command
 	}
 
-	return "chop " + command, true, command
+	return "chop " + stripStderrRedirect(command), true, command
+}
+
+// stripStderrRedirect removes trailing "2>&1" from a command — redundant when chop uses CombinedOutput.
+func stripStderrRedirect(cmd string) string {
+	cmd = strings.TrimRight(cmd, " ")
+	cmd = strings.TrimSuffix(cmd, "2>&1")
+	return strings.TrimRight(cmd, " ")
 }
 
 // shouldWrap returns true if a single (non-compound) command should be wrapped with chop.

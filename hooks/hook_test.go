@@ -48,10 +48,10 @@ func TestSupportedCommandGetsPrepended(t *testing.T) {
 		{`"npm.exe" install`, `chop "npm.exe" install`},
 		{`"npm" install`, `chop "npm" install`},
 		{`'npm' install`, `chop 'npm' install`},
-		// fd-style redirects must not block wrapping
-		{`npm run test 2>&1`, `chop npm run test 2>&1`},
-		{`npm test -- --watch=false 2>&1`, `chop npm test -- --watch=false 2>&1`},
-		{`go test ./... 2>&1`, `chop go test ./... 2>&1`},
+		// fd-style redirects must not block wrapping; 2>&1 is stripped (redundant with CombinedOutput)
+		{`npm run test 2>&1`, `chop npm run test`},
+		{`npm test -- --watch=false 2>&1`, `chop npm test -- --watch=false`},
+		{`go test ./... 2>&1`, `chop go test ./...`},
 	}
 
 	for _, tt := range tests {
@@ -157,7 +157,7 @@ func TestCompoundCommandWrapping(t *testing.T) {
 		},
 		{
 			`cd /path/to/project && npm run test 2>&1`,
-			`cd /path/to/project && chop npm run test 2>&1`,
+			`cd /path/to/project && chop npm run test`,
 		},
 		{
 			`cd "/c/Users/user/repos/project" && npm run test`,

@@ -62,9 +62,20 @@ func Run(currentVersion string) {
 		os.Exit(1)
 	}
 
-	// Verify checksum and signature before replacing the binary
-	if err := verifyChecksum(tmpPath, latest, binaryName); err != nil {
+	// Verify checksum and signature before replacing the binary.
+	// verifyChecksum returns the verified hash so we can re-check it right
+	// before the rename, closing the TOCTOU window (mirrors ApplyPendingUpdate).
+	verifiedHash, err := verifyChecksumAndHash(tmpPath, latest, binaryName)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "chop: verification failed: %v\n", err)
+		os.Remove(tmpPath)
+		os.Exit(1)
+	}
+
+	// Re-hash immediately before rename to close the TOCTOU window.
+	preInstallHash, err := hashFile(tmpPath)
+	if err != nil || preInstallHash != verifiedHash {
+		fmt.Fprintf(os.Stderr, "chop: binary hash changed before install — aborting\n")
 		os.Remove(tmpPath)
 		os.Exit(1)
 	}
@@ -236,34 +247,41 @@ func parseSemver(v string) ([3]int, bool) {
 // verifies the signature of checksums.txt using the embedded public key,
 // and then verifies the SHA256 hash of the binary.
 func verifyChecksum(binaryPath, version, binaryName string) error {
+	_, err := verifyChecksumAndHash(binaryPath, version, binaryName)
+	return err
+}
+
+// verifyChecksumAndHash is like verifyChecksum but also returns the verified SHA256
+// hex digest so callers can re-check the file right before installation.
+func verifyChecksumAndHash(binaryPath, version, binaryName string) (string, error) {
 	checksums, err := fetchReleaseFile(version, "checksums.txt")
 	if err != nil {
-		return fmt.Errorf("failed to fetch checksums.txt: %w", err)
+		return "", fmt.Errorf("failed to fetch checksums.txt: %w", err)
 	}
 
 	signature, err := fetchReleaseFile(version, "checksums.txt.sig")
 	if err != nil {
-		return fmt.Errorf("failed to fetch checksums.txt.sig: %w", err)
+		return "", fmt.Errorf("failed to fetch checksums.txt.sig: %w", err)
 	}
 
 	if err := verifySignature(checksums, signature); err != nil {
-		return fmt.Errorf("invalid signature for checksums.txt: %w", err)
+		return "", fmt.Errorf("invalid signature for checksums.txt: %w", err)
 	}
 
 	expected, err := parseChecksum(string(checksums), binaryName)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	actual, err := hashFile(binaryPath)
 	if err != nil {
-		return fmt.Errorf("failed to hash downloaded binary: %w", err)
+		return "", fmt.Errorf("failed to hash downloaded binary: %w", err)
 	}
 
 	if actual != expected {
-		return fmt.Errorf("SHA256 mismatch: expected %s, got %s", expected, actual)
+		return "", fmt.Errorf("SHA256 mismatch: expected %s, got %s", expected, actual)
 	}
-	return nil
+	return actual, nil
 }
 
 func verifySignature(message, signature []byte) error {

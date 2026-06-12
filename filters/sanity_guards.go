@@ -43,7 +43,7 @@ func looksLikeGitBranchOutput(s string) bool {
 		if trimmed == "" {
 			continue
 		}
-		if strings.HasPrefix(line, "* ") || strings.HasPrefix(line, "  ") || len(trimmed) > 0 {
+		if strings.HasPrefix(line, "* ") || strings.HasPrefix(line, "  ") {
 			return true
 		}
 	}
@@ -742,4 +742,9 @@ func outputSanityCheck(raw, result string) string {
 		return raw
 	}
 	return result
+}
+
+// OutputSanityCheck is the exported form for use by callers outside this package.
+func OutputSanityCheck(raw, result string) string {
+	return outputSanityCheck(raw, result)
 }

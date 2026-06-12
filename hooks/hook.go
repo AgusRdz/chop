@@ -338,34 +338,6 @@ func splitLogical(command string) (segments []string, operators []string) {
 	return
 }
 
-// wrapCompound splits a compound command on logical operators and wraps each
-// supported segment with chop, reassembling the result.
-func wrapCompound(command string) ([]byte, bool, string) {
-	segments, operators := splitLogical(command)
-	modified := false
-	result := make([]string, len(segments))
-	for i, seg := range segments {
-		seg = strings.TrimSpace(seg)
-		if shouldWrap(seg) {
-			result[i] = "chop " + seg
-			modified = true
-		} else {
-			result[i] = seg
-		}
-	}
-	if !modified {
-		return nil, false, command
-	}
-	var sb strings.Builder
-	for i, seg := range result {
-		if i > 0 {
-			sb.WriteString(operators[i-1])
-		}
-		sb.WriteString(seg)
-	}
-	return buildOutput(command, sb.String())
-}
-
 // buildOutput constructs the hook JSON response for a rewritten command.
 func buildOutput(original, wrapped string) ([]byte, bool, string) {
 	out := hookOutput{

@@ -73,63 +73,6 @@ func TestContainsOutsideQuotes(t *testing.T) {
 	}
 }
 
-// ---- wrapCompound ----
-
-func TestWrapCompound(t *testing.T) {
-	tests := []struct {
-		name         string
-		command      string
-		wantModified bool
-		wantContains string
-	}{
-		{
-			name:         "wraps supported segments",
-			command:      "git add . && git commit -m 'msg'",
-			wantModified: true,
-			wantContains: "chop git add .",
-		},
-		{
-			name:         "partial wrap — only supported segments wrapped",
-			command:      "npm install || echo failed",
-			wantModified: true,
-			wantContains: "chop npm install",
-		},
-		{
-			name:         "no supported segments — not modified",
-			command:      "cd /tmp ; ls -la",
-			wantModified: false,
-		},
-		{
-			name:         "single supported segment",
-			command:      "go build ./...",
-			wantModified: true, // wrapCompound wraps even single supported segments
-			wantContains: "chop go build ./...",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, modified, _ := wrapCompound(tt.command)
-			if modified != tt.wantModified {
-				t.Errorf("wrapCompound(%q) modified=%v, want %v", tt.command, modified, tt.wantModified)
-			}
-			if tt.wantModified && tt.wantContains != "" {
-				_, _, orig := wrapCompound(tt.command)
-				_ = orig
-				data, _, _ := wrapCompound(tt.command)
-				var out hookOutput
-				if err := json.Unmarshal(data, &out); err != nil {
-					t.Fatalf("failed to parse wrapCompound output: %v", err)
-				}
-				if !strings.Contains(out.HookSpecificOutput.UpdatedInput.Command, tt.wantContains) {
-					t.Errorf("expected wrapped command to contain %q, got %q",
-						tt.wantContains, out.HookSpecificOutput.UpdatedInput.Command)
-				}
-			}
-		})
-	}
-}
-
 // ---- buildOutput ----
 
 func TestBuildOutput(t *testing.T) {

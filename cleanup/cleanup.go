@@ -11,9 +11,18 @@ import (
 // Uninstall removes everything: hook, data, config, and the binary itself.
 // It prints what it removes. The binary self-deletion happens last.
 func Uninstall(keepData bool) {
-	// 1. Hook
+	// 1. Hooks — remove all supported integrations
 	if installed, _ := hooks.IsInstalled(); installed {
 		hooks.Uninstall()
+	}
+	if installed, _ := hooks.CodexIsInstalled(); installed {
+		hooks.CodexUninstall()
+	}
+	if installed, _ := hooks.GeminiIsInstalled(); installed {
+		hooks.GeminiUninstall()
+	}
+	if installed, _ := hooks.AntigravityIsInstalled(); installed {
+		hooks.AntigravityUninstall()
 	}
 
 	// 2. Data

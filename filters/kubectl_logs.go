@@ -115,8 +115,10 @@ func deduplicateLogEntries(entries []kubectlLogEntry) string {
 
 	hidden := 0
 	if len(normalEntries) > 50 {
-		hidden = len(normalEntries) - 50
-		normalEntries = normalEntries[hidden:]
+		for _, d := range normalEntries[:len(normalEntries)-50] {
+			hidden += d.count
+		}
+		normalEntries = normalEntries[len(normalEntries)-50:]
 	}
 
 	var out []string
@@ -232,8 +234,10 @@ func filterTextLogs(lines []string) string {
 
 	hidden := 0
 	if len(normalLines) > 50 {
-		hidden = len(normalLines) - 50
-		normalLines = normalLines[hidden:]
+		for _, d := range normalLines[:len(normalLines)-50] {
+			hidden += d.count
+		}
+		normalLines = normalLines[len(normalLines)-50:]
 	}
 
 	var out []string

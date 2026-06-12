@@ -5,7 +5,17 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 )
+
+// truncateRunes truncates s to at most n runes, appending "..." if truncated.
+func truncateRunes(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:n]) + "..."
+}
 
 // compressJSON takes a JSON string and returns a structural summary with types.
 // Small/simple JSON is returned as-is. Large JSON gets structure-only compression.
@@ -74,8 +84,8 @@ func compressJSONValue(v interface{}, depth int) string {
 		}
 		return fmt.Sprintf("%g", val)
 	case string:
-		if len(val) > 50 {
-			return fmt.Sprintf("%q", val[:50]+"...")
+		if utf8.RuneCountInString(val) > 50 {
+			return fmt.Sprintf("%q", truncateRunes(val, 50))
 		}
 		return fmt.Sprintf("%q", val)
 	case []interface{}:

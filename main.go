@@ -32,8 +32,10 @@ var version = "dev"
 func main() {
 	// Apply any pending auto-update from a previous run
 	updater.ApplyPendingUpdate(version)
-	// Show hint if a newer version is available and auto-update is off
-	updater.NotifyIfUpdateAvailable(version)
+	// Show hint only on management paths — never inject noise into hook/wrap output
+	if len(os.Args) < 2 || os.Args[1] != "hook" {
+		updater.NotifyIfUpdateAvailable(version)
+	}
 
 	if len(os.Args) < 2 {
 		printHelp()
@@ -301,8 +303,9 @@ func main() {
 
 	var finalOutput string
 	// Never compress failed command output — error messages must be preserved in full.
+	// Still redact secrets so a failing curl doesn't surface auth headers.
 	if exitCode != 0 {
-		finalOutput = raw
+		finalOutput = filters.RedactOutput(raw)
 	} else if cfg.IsDisabled(command, args...) {
 		finalOutput = raw
 	} else {
@@ -425,6 +428,7 @@ func runCapture(args []string) {
 	if filter != nil {
 		filtered, ferr := filter(raw)
 		if ferr == nil {
+			filtered = filters.OutputSanityCheck(raw, filtered)
 			filteredPath := filepath.Join(fixtureDir, baseName+".filtered.txt")
 			if err := os.WriteFile(filteredPath, []byte(filtered), 0o600); err != nil {
 				fmt.Fprintf(os.Stderr, "chop: failed to write filtered fixture: %v\n", err)
@@ -1433,6 +1437,7 @@ func runDiff(args []string) {
 
 	if filter != nil {
 		result, err := filter(raw)
+		result = filters.OutputSanityCheck(raw, result)
 		if err != nil || result == raw {
 			filtered = raw
 			filterName = "(no compression)"
@@ -1442,6 +1447,7 @@ func runDiff(args []string) {
 		}
 	} else {
 		result, err := filters.AutoDetect(raw)
+		result = filters.OutputSanityCheck(raw, result)
 		if err != nil || result == raw {
 			filtered = raw
 			filterName = "(no filter matched)"
@@ -2208,8 +2214,7 @@ func runFixHooks() {
 			os.Exit(1)
 		}
 		// Extract just the binary path from `"<path>" hook`
-		chopBinPath := strings.TrimSuffix(strings.Trim(chopBin, `"`), `" hook`)
-		chopBinPath = strings.TrimSuffix(chopBin, " hook")
+		chopBinPath := strings.TrimSuffix(chopBin, " hook")
 		chopBinPath = strings.Trim(chopBinPath, `"`)
 
 		scriptPath, err := hooks.GenerateConflictFixScript(conflicts, chopBinPath)

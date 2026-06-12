@@ -27,12 +27,19 @@ var sensitiveKeywords = []string{
 	"db_password",
 }
 
-// sensitiveHeadersRe is used for plain-text redaction (e.g., curl headers).
-var sensitiveHeadersRe = regexp.MustCompile(`(?mi)^([<>* ]*)(` + strings.Join(sensitiveKeywords, "|") + `):.*$`)
+// sensitiveHeadersRe matches HTTP header lines containing any sensitive keyword
+// anywhere in the header name (e.g., "X-Custom-Token:", "Refresh-Token:").
+var sensitiveHeadersRe = regexp.MustCompile(`(?mi)^([<>* ]*)([^\s:]*(?:` + strings.Join(sensitiveKeywords, "|") + `)[^\s:]*):.*$`)
 
 // redactHeaders masks sensitive HTTP headers and key-value pairs in plain text.
 func redactHeaders(s string) string {
 	return sensitiveHeadersRe.ReplaceAllString(s, "${1}${2}: [REDACTED]")
+}
+
+// RedactOutput applies header-level secret redaction to arbitrary command output.
+// Used on the failure path where no filter runs but output still contains secrets.
+func RedactOutput(s string) string {
+	return redactHeaders(s)
 }
 
 // redactJSON recursively redacts sensitive keys in parsed JSON data.

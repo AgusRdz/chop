@@ -13,10 +13,20 @@ import (
 	"sync"
 	"time"
 
+	"unicode/utf8"
+
 	"github.com/AgusRdz/chop/config"
 	"github.com/mattn/go-isatty"
 	_ "modernc.org/sqlite"
 )
+
+// truncateRunes truncates s to at most n runes, appending "..." if truncated.
+func truncateRunes(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	return string([]rune(s)[:n]) + "..."
+}
 
 // ANSI color codes.
 const (
@@ -551,8 +561,8 @@ func writeUnchoppedTable(b *strings.Builder, rows []UnchoppedSummary, verbose bo
 	b.WriteString(fmt.Sprintf("  %-25s %5s %10s %6s\n", strings.Repeat("─", cmdWidth), strings.Repeat("─", 5), strings.Repeat("─", 10), strings.Repeat("─", 6)))
 	for _, s := range rows {
 		cmd := s.Command
-		if !verbose && len(cmd) > cmdWidth {
-			cmd = cmd[:cmdWidth-3] + "..."
+		if !verbose && utf8.RuneCountInString(cmd) > cmdWidth {
+			cmd = truncateRunes(cmd, cmdWidth-3)
 		}
 		avg := 0
 		if s.Count > 0 {
@@ -687,8 +697,8 @@ func FormatHistory(records []Record, verbose bool, color bool) string {
 			marker = "!"
 		}
 		cmd := r.Command
-		if !verbose && len(cmd) > maxCmd {
-			cmd = cmd[:maxCmd-3] + "..."
+		if !verbose && utf8.RuneCountInString(cmd) > maxCmd {
+			cmd = truncateRunes(cmd, maxCmd-3)
 		}
 		if color {
 			markerStr := "  " + marker + " "
@@ -1018,12 +1028,20 @@ func FormatGainSince(s Stats, sinceStr string) string {
 	return b.String()
 }
 
-// ParseSinceDuration parses duration strings like "7d", "2w", "24h", "30m".
-// Supports: m (minutes), h (hours), d (days), w (weeks).
+// ParseSinceDuration parses duration strings like "7d", "2w", "24h", "30m", "1mo".
+// Supports: m (minutes), h (hours), d (days), w (weeks), mo (months ≈ 30 days).
 // Falls back to time.ParseDuration for standard Go duration strings.
 func ParseSinceDuration(s string) (time.Duration, error) {
 	if len(s) < 2 {
 		return 0, fmt.Errorf("invalid duration %q", s)
+	}
+	// Check two-char suffix "mo" first.
+	if strings.HasSuffix(s, "mo") {
+		value := s[:len(s)-2]
+		var n int
+		if _, err := fmt.Sscanf(value, "%d", &n); err == nil {
+			return time.Duration(n) * 30 * 24 * time.Hour, nil
+		}
 	}
 	unit := s[len(s)-1]
 	value := s[:len(s)-1]

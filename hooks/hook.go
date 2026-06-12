@@ -159,7 +159,7 @@ type hookOutput struct {
 
 type hookSpecificOutput struct {
 	HookEventName      string    `json:"hookEventName"`
-	PermissionDecision string    `json:"permissionDecision"`
+	PermissionDecision string    `json:"permissionDecision,omitempty"`
 	UpdatedInput       toolInput `json:"updatedInput"`
 }
 
@@ -311,6 +311,14 @@ func shouldWrap(command string) bool {
 	if isStreamingInvocation(command) {
 		return false
 	}
+
+	// Pipe and redirect operators — can't wrap safely (guard here covers both
+	// single-command and individual compound segments).
+	for _, op := range pipeRedirectOperators {
+		if containsOutsideQuotes(command, op) {
+			return false
+		}
+	}
 	baseCmd := command
 
 	// Find the end of the base command, respecting quotes
@@ -384,8 +392,7 @@ func splitLogical(command string) (segments []string, operators []string) {
 func buildOutput(original, wrapped string) ([]byte, bool, string) {
 	out := hookOutput{
 		HookSpecificOutput: hookSpecificOutput{
-			HookEventName:      "PreToolUse",
-			PermissionDecision: "allow",
+			HookEventName: "PreToolUse",
 			UpdatedInput: toolInput{
 				Command: wrapped,
 			},

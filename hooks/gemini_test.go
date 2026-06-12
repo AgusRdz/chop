@@ -25,8 +25,8 @@ func TestGeminiHookWrapsShellCommand(t *testing.T) {
 		t.Fatalf("failed to parse output: %v", err)
 	}
 
-	if result.Decision != "allow" {
-		t.Errorf("expected decision 'allow', got %q", result.Decision)
+	if result.Decision != "" {
+		t.Errorf("expected no decision override (let platform decide), got %q", result.Decision)
 	}
 	if !strings.HasPrefix(result.HookSpecificOutput.ToolInput.Command, "chop ") {
 		t.Errorf("expected command to start with 'chop ', got %q", result.HookSpecificOutput.ToolInput.Command)
@@ -129,8 +129,8 @@ func TestGeminiHookOutputFormat(t *testing.T) {
 		t.Fatalf("output is not valid JSON: %v", err)
 	}
 
-	if raw["decision"] != "allow" {
-		t.Errorf("expected top-level 'decision' field, got %v", raw)
+	if _, hasDecision := raw["decision"]; hasDecision {
+		t.Errorf("expected no 'decision' field (should not override permissions), got %v", raw["decision"])
 	}
 
 	hso, ok := raw["hookSpecificOutput"].(map[string]interface{})

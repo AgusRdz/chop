@@ -3,14 +3,12 @@ package hooks
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/AgusRdz/chop/config"
 )
 
 func disabledPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".local", "share", "chop", "disabled")
+	return filepath.Join(config.DataDir(), "disabled")
 }
 
 // IsDisabledGlobally reports whether chop hook wrapping is disabled.

@@ -47,8 +47,8 @@ type geminiToolInput struct {
 }
 
 type geminiHookOutput struct {
-	Decision           string                    `json:"decision"`
-	HookSpecificOutput geminiHookSpecificOutput  `json:"hookSpecificOutput,omitempty"`
+	Decision           string                   `json:"decision,omitempty"`
+	HookSpecificOutput geminiHookSpecificOutput `json:"hookSpecificOutput,omitempty"`
 }
 
 type geminiHookSpecificOutput struct {
@@ -121,7 +121,6 @@ func processGeminiHookInput(input []byte) ([]byte, bool, string) {
 // buildGeminiOutput constructs the Gemini CLI hook JSON response.
 func buildGeminiOutput(original, wrapped string) ([]byte, bool, string) {
 	out := geminiHookOutput{
-		Decision: "allow",
 		HookSpecificOutput: geminiHookSpecificOutput{
 			ToolInput: geminiToolInput{
 				Command: wrapped,

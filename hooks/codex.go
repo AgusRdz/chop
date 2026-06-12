@@ -53,7 +53,7 @@ type codexHookOutput struct {
 
 type codexHookSpecificOutput struct {
 	HookEventName      string         `json:"hookEventName"`
-	PermissionDecision string         `json:"permissionDecision"`
+	PermissionDecision string         `json:"permissionDecision,omitempty"`
 	UpdatedInput       codexToolInput `json:"updatedInput"`
 }
 
@@ -126,8 +126,7 @@ func processCodexHookInput(input []byte) ([]byte, bool, string) {
 func buildCodexOutput(original, wrapped string) ([]byte, bool, string) {
 	out := codexHookOutput{
 		HookSpecificOutput: codexHookSpecificOutput{
-			HookEventName:      "PreToolUse",
-			PermissionDecision: "allow",
+			HookEventName: "PreToolUse",
 			UpdatedInput: codexToolInput{
 				Command: wrapped,
 			},

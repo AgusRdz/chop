@@ -27,7 +27,7 @@ type antigravityHookOutput struct {
 
 type antigravityHookSpecificOutput struct {
 	HookEventName      string               `json:"hookEventName"`
-	PermissionDecision string               `json:"permissionDecision"`
+	PermissionDecision string               `json:"permissionDecision,omitempty"`
 	UpdatedInput       antigravityToolInput `json:"updatedInput"`
 }
 
@@ -86,8 +86,7 @@ func processAntigravityHookInput(input []byte) ([]byte, bool, string) {
 func buildAntigravityOutput(original, wrapped string) ([]byte, bool, string) {
 	out := antigravityHookOutput{
 		HookSpecificOutput: antigravityHookSpecificOutput{
-			HookEventName:      "PreToolUse",
-			PermissionDecision: "allow",
+			HookEventName: "PreToolUse",
 			UpdatedInput: antigravityToolInput{
 				Command: wrapped,
 			},

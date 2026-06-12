@@ -96,8 +96,8 @@ func TestBuildOutput(t *testing.T) {
 	if out.HookSpecificOutput.HookEventName != "PreToolUse" {
 		t.Errorf("HookEventName = %q, want PreToolUse", out.HookSpecificOutput.HookEventName)
 	}
-	if out.HookSpecificOutput.PermissionDecision != "allow" {
-		t.Errorf("PermissionDecision = %q, want allow", out.HookSpecificOutput.PermissionDecision)
+	if out.HookSpecificOutput.PermissionDecision != "" {
+		t.Errorf("PermissionDecision = %q, want empty (no override)", out.HookSpecificOutput.PermissionDecision)
 	}
 	if out.HookSpecificOutput.UpdatedInput.Command != wrapped {
 		t.Errorf("UpdatedInput.Command = %q, want %q", out.HookSpecificOutput.UpdatedInput.Command, wrapped)

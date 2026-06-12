@@ -69,8 +69,8 @@ func TestSupportedCommandGetsPrepended(t *testing.T) {
 			if result.HookSpecificOutput.UpdatedInput.Command != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, result.HookSpecificOutput.UpdatedInput.Command)
 			}
-			if result.HookSpecificOutput.PermissionDecision != "allow" {
-				t.Errorf("expected permission 'allow', got %q", result.HookSpecificOutput.PermissionDecision)
+			if result.HookSpecificOutput.PermissionDecision != "" {
+				t.Errorf("expected no permissionDecision (let platform decide), got %q", result.HookSpecificOutput.PermissionDecision)
 			}
 			if result.HookSpecificOutput.HookEventName != "PreToolUse" {
 				t.Errorf("expected hookEventName 'PreToolUse', got %q", result.HookSpecificOutput.HookEventName)
@@ -132,6 +132,33 @@ func TestRedirectPassthrough(t *testing.T) {
 			_, shouldModify, _ := processHookInput(makeInput(cmd))
 			if shouldModify {
 				t.Errorf("should not modify redirect command: %s", cmd)
+			}
+		})
+	}
+}
+
+func TestCompoundWithRedirectPassthrough(t *testing.T) {
+	// A segment containing a redirect or pipe must not be wrapped (HIGH-002).
+	// Each case lists the bad wrapping that must NOT appear in the output.
+	tests := []struct {
+		cmd         string
+		mustNotWrap string
+	}{
+		{"git fetch && git log > full.txt", "chop git log > full.txt"},
+		{"git diff > output.txt && git status", "chop git diff"},
+		{"a && b | grep X", "chop b | grep"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.cmd, func(t *testing.T) {
+			output, shouldModify, _ := processHookInput(makeInput(tt.cmd))
+			if shouldModify {
+				var result hookOutput
+				if err := json.Unmarshal(output, &result); err == nil {
+					wrapped := result.HookSpecificOutput.UpdatedInput.Command
+					if strings.Contains(wrapped, tt.mustNotWrap) {
+						t.Errorf("redirect/pipe-containing segment was wrapped: %q in %q", tt.mustNotWrap, wrapped)
+					}
+				}
 			}
 		})
 	}

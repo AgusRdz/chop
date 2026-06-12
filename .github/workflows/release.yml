@@ -18,11 +18,11 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@0aaccfd150d50ccaeb58ebd88d36e91967a5f35b  # v5.4.0
         with:
           go-version: "1.24"
 
@@ -79,7 +79,7 @@ jobs:
           [ -s bin/checksums.txt.sig ] || { echo "ERROR: checksums.txt.sig is empty — signing failed"; exit 1; }
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@c95fe1489396fe8a9eb87c0abf8aa5b2ef267fda  # v2.3.0
         with:
           body: ${{ steps.changelog.outputs.content }}
           files: |
@@ -92,7 +92,7 @@ jobs:
             bin/checksums.txt.sig
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@db975fed14d5e4578166d99b27ee20b6c7491ece  # v2.3.0
         with:
           subject-path: bin/chop-*
 

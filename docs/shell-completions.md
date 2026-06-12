@@ -1,6 +1,6 @@
 # Shell Completions
 
-chop provides tab-completion scripts for bash, zsh, fish, and PowerShell. Completions cover all top-level commands, subcommands, and flags.
+chop provides tab-completion scripts for bash, zsh, fish, and PowerShell.
 
 ## bash
 

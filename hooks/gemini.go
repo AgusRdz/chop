@@ -115,11 +115,11 @@ func processGeminiHookInput(input []byte) ([]byte, bool, string) {
 		return nil, false, original
 	}
 
-	return buildGeminiOutput(wrapped)
+	return buildGeminiOutput(original, wrapped)
 }
 
 // buildGeminiOutput constructs the Gemini CLI hook JSON response.
-func buildGeminiOutput(wrapped string) ([]byte, bool, string) {
+func buildGeminiOutput(original, wrapped string) ([]byte, bool, string) {
 	out := geminiHookOutput{
 		Decision: "allow",
 		HookSpecificOutput: geminiHookSpecificOutput{
@@ -130,7 +130,7 @@ func buildGeminiOutput(wrapped string) ([]byte, bool, string) {
 	}
 	data, err := json.Marshal(out)
 	if err != nil {
-		return nil, false, ""
+		return nil, false, original
 	}
-	return data, true, wrapped
+	return data, true, original
 }

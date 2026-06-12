@@ -5,6 +5,32 @@ import (
 	"strings"
 )
 
+// filterGitShow preserves the commit header (hash, author, date, subject) from
+// "git show <sha>" and then delegates the diff body to filterGitDiff.
+func filterGitShow(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	diffIdx := strings.Index(trimmed, "\ndiff --git")
+	if diffIdx < 0 {
+		// No diff section — pass through filterGitDiff which handles stat-only output.
+		return filterGitDiff(raw)
+	}
+
+	header := trimmed[:diffIdx+1] // commit/author/date/message block
+	diffPart := trimmed[diffIdx+1:]
+
+	diffSummary, err := filterGitDiff(diffPart)
+	if err != nil {
+		return outputSanityCheck(raw, raw), nil
+	}
+
+	result := header + "\n" + diffSummary
+	return outputSanityCheck(raw, result), nil
+}
+
 func filterGitDiff(raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {

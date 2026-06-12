@@ -38,7 +38,7 @@ func TestSupportedCommandGetsPrepended(t *testing.T) {
 		{"curl https://api.io", "chop curl https://api.io"},
 		{"dotnet build", "chop dotnet build"},
 		{"cat /var/log/syslog", "chop cat /var/log/syslog"},
-		{"tail -f /var/log/app.log", "chop tail -f /var/log/app.log"},
+		{"tail -n 100 /var/log/app.log", "chop tail -n 100 /var/log/app.log"},
 		{"find . -name '*.go'", "chop find . -name '*.go'"},
 		{`"/usr/bin/npm" install`, `chop "/usr/bin/npm" install`},
 		{`'/usr/bin/npm' install`, `chop '/usr/bin/npm' install`},
@@ -97,6 +97,25 @@ func TestPipePassthrough(t *testing.T) {
 			_, shouldModify, _ := processHookInput(makeInput(cmd))
 			if shouldModify {
 				t.Errorf("should not modify pipe command: %s", cmd)
+			}
+		})
+	}
+}
+
+func TestStreamingPassthrough(t *testing.T) {
+	tests := []string{
+		"tail -f /var/log/app.log",
+		"kubectl logs -f pod/my-pod",
+		"docker logs -f my-container",
+		"docker compose up",
+		"stern my-pod",
+		"ping google.com",
+	}
+	for _, cmd := range tests {
+		t.Run(cmd, func(t *testing.T) {
+			_, shouldModify, _ := processHookInput(makeInput(cmd))
+			if shouldModify {
+				t.Errorf("should not modify streaming command: %s", cmd)
 			}
 		})
 	}
@@ -164,8 +183,8 @@ func TestCompoundCommandWrapping(t *testing.T) {
 			`cd "/c/Users/user/repos/project" && chop npm run test`,
 		},
 		{
-			`cd /app && docker compose up && git status`,
-			`cd /app && chop docker compose up && chop git status`,
+			`cd /app && docker compose up -d && git status`,
+			`cd /app && chop docker compose up -d && chop git status`,
 		},
 	}
 	for _, tt := range tests {

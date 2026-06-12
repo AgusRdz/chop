@@ -49,11 +49,40 @@ if [ -z "$CHOP_VERSION" ]; then
 fi
 
 URL="https://github.com/${REPO}/releases/download/${CHOP_VERSION}/${BINARY}"
+CHECKSUMS_URL="https://github.com/${REPO}/releases/download/${CHOP_VERSION}/checksums.txt"
 
 echo "installing chop ${CHOP_VERSION} (${OS}/${ARCH})..."
 
 mkdir -p "$INSTALL_DIR"
-curl -fsSL "$URL" -o "${INSTALL_DIR}/chop${EXT}"
+TMPFILE="${INSTALL_DIR}/chop${EXT}.tmp"
+
+curl -fsSL "$URL" -o "$TMPFILE"
+
+# Verify SHA256 checksum before installing
+CHECKSUMS=$(curl -fsSL "$CHECKSUMS_URL") || { echo "failed to download checksums.txt" >&2; rm -f "$TMPFILE"; exit 1; }
+EXPECTED=$(printf '%s' "$CHECKSUMS" | grep " ${BINARY}$" | awk '{print $1}')
+if [ -z "$EXPECTED" ]; then
+  echo "checksum not found for ${BINARY}" >&2
+  rm -f "$TMPFILE"
+  exit 1
+fi
+
+if command -v sha256sum >/dev/null 2>&1; then
+  ACTUAL=$(sha256sum "$TMPFILE" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+  ACTUAL=$(shasum -a 256 "$TMPFILE" | awk '{print $1}')
+else
+  echo "warning: sha256sum/shasum not found, skipping checksum verification" >&2
+  ACTUAL="$EXPECTED"
+fi
+
+if [ "$ACTUAL" != "$EXPECTED" ]; then
+  echo "checksum mismatch for ${BINARY}: expected ${EXPECTED}, got ${ACTUAL}" >&2
+  rm -f "$TMPFILE"
+  exit 1
+fi
+
+mv "$TMPFILE" "${INSTALL_DIR}/chop${EXT}"
 chmod +x "${INSTALL_DIR}/chop${EXT}"
 
 echo "installed chop to ${INSTALL_DIR}/chop${EXT}"

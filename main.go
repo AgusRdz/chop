@@ -30,10 +30,11 @@ var changelog string
 var version = "dev"
 
 func main() {
-	// Apply any pending auto-update from a previous run
-	updater.ApplyPendingUpdate(version)
-	// Show hint only on management paths — never inject noise into hook/wrap output
-	if len(os.Args) < 2 || os.Args[1] != "hook" {
+	// Skip update machinery entirely on the hook subcommand: it fires on every Bash call
+	// and must be fast and side-effect-free. Apply/notify only on management paths.
+	isHookPath := len(os.Args) >= 2 && os.Args[1] == "hook"
+	if !isHookPath {
+		updater.ApplyPendingUpdate(version)
 		updater.NotifyIfUpdateAvailable(version)
 	}
 
@@ -1339,6 +1340,7 @@ func globalRemove(commands []string) {
 }
 
 func writeGlobalConfig(disabled []string) {
+	// Serialize the disabled list as an inline YAML array.
 	var b strings.Builder
 	b.WriteString("disabled: [")
 	for i, d := range disabled {
@@ -1347,10 +1349,45 @@ func writeGlobalConfig(disabled []string) {
 		}
 		b.WriteString(fmt.Sprintf("%q", d))
 	}
-	b.WriteString("]\n")
+	b.WriteString("]")
+	newLine := b.String()
 
 	path := config.Path()
-	if err := os.WriteFile(path, []byte(b.String()), 0o600); err != nil {
+
+	// Update only the disabled: line in-place to preserve editor/history_compressed_only.
+	data, err := os.ReadFile(path)
+	if err == nil {
+		lines := strings.Split(string(data), "\n")
+		updated := false
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "#") {
+				continue
+			}
+			k, _, ok := strings.Cut(trimmed, ":")
+			if ok && strings.TrimSpace(k) == "disabled" {
+				lines[i] = newLine
+				updated = true
+				break
+			}
+		}
+		if !updated {
+			lines = append(lines, newLine)
+		}
+		out := strings.TrimRight(strings.Join(lines, "\n"), "\n") + "\n"
+		if err := os.WriteFile(path, []byte(out), 0o600); err != nil {
+			fmt.Fprintf(os.Stderr, "chop: failed to write %s: %v\n", path, err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// File doesn't exist yet — write minimal config.
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to create config dir: %v\n", err)
+		os.Exit(1)
+	}
+	if err := os.WriteFile(path, []byte(newLine+"\n"), 0o600); err != nil {
 		fmt.Fprintf(os.Stderr, "chop: failed to write %s: %v\n", path, err)
 		os.Exit(1)
 	}
@@ -2299,15 +2336,15 @@ _chop_completion() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
     local cmd="${COMP_WORDS[1]}"
 
-    local top_cmds="help version gain capture config filter local list diff init update auto-update enable disable doctor uninstall reset completion"
+    local top_cmds="help version gain capture config filter local global list diff init setup update auto-update enable disable doctor fix-hooks unwrap-hooks hook-audit agent-info changelog uninstall reset completion"
 
     case "$cmd" in
         gain)
             case "$prev" in
                 --export) COMPREPLY=($(compgen -W "json csv" -- "$cur")) ;;
-                --since)  COMPREPLY=($(compgen -W "1h 6h 24h 7d 30d" -- "$cur")) ;;
+                --since)  COMPREPLY=($(compgen -W "1h 6h 24h 7d 30d 1mo" -- "$cur")) ;;
                 --limit)  COMPREPLY=() ;;
-                *)        COMPREPLY=($(compgen -W "--history --summary --unchopped --verbose --all --since --limit --export --skip --unskip --delete --no-track --resume-track" -- "$cur")) ;;
+                *)        COMPREPLY=($(compgen -W "--history --summary --unchopped --verbose --all --since --limit --export --skip --unskip --delete --no-track --resume-track --projects --project" -- "$cur")) ;;
             esac ;;
         filter)
             if [[ ${COMP_CWORD} -eq 2 ]]; then
@@ -2328,6 +2365,10 @@ _chop_completion() {
         local)
             if [[ ${COMP_CWORD} -eq 2 ]]; then
                 COMPREPLY=($(compgen -W "add remove clear edit" -- "$cur"))
+            fi ;;
+        global)
+            if [[ ${COMP_CWORD} -eq 2 ]]; then
+                COMPREPLY=($(compgen -W "add remove" -- "$cur"))
             fi ;;
         init|setup)
             COMPREPLY=($(compgen -W "--global --gemini --codex --antigravity --uninstall --status" -- "$cur")) ;;
@@ -2358,9 +2399,10 @@ _chop() {
     case $state in
         cmd)
             _values 'command' \
-                'help' 'version' 'gain' 'capture' 'config' 'filter' 'local' \
-                'list' 'diff' 'init' 'update' 'auto-update' 'enable' 'disable' \
-                'doctor' 'uninstall' 'reset' 'completion'
+                'help' 'version' 'gain' 'capture' 'config' 'filter' 'local' 'global' \
+                'list' 'diff' 'init' 'setup' 'update' 'auto-update' 'enable' 'disable' \
+                'doctor' 'fix-hooks' 'unwrap-hooks' 'hook-audit' 'agent-info' 'changelog' \
+                'uninstall' 'reset' 'completion'
             ;;
         args)
             case ${words[2]} in
@@ -2368,7 +2410,7 @@ _chop() {
                     _values 'option' \
                         '--history' '--summary' '--unchopped' '--verbose' '--all' \
                         '--since' '--limit' '--export' '--skip' '--unskip' \
-                        '--delete' '--no-track' '--resume-track'
+                        '--delete' '--no-track' '--resume-track' '--projects' '--project'
                     ;;
                 filter)
                     if [[ ${#words} -eq 3 ]]; then
@@ -2388,6 +2430,8 @@ _chop() {
                     fi ;;
                 local)
                     [[ ${#words} -eq 3 ]] && _values 'subcommand' 'add' 'remove' 'clear' 'edit' ;;
+                global)
+                    [[ ${#words} -eq 3 ]] && _values 'subcommand' 'add' 'remove' ;;
                 init|setup)
                     _values 'option' '--global' '--gemini' '--codex' '--antigravity' '--uninstall' '--status' ;;
                 completion)
@@ -2409,7 +2453,7 @@ const completionFish = `# chop fish completion
 complete -c chop -f
 
 # Top-level commands
-set -l cmds help version gain capture config filter local list diff init update auto-update enable disable doctor uninstall reset completion
+set -l cmds help version gain capture config filter local global list diff init setup update auto-update enable disable doctor fix-hooks unwrap-hooks hook-audit agent-info changelog uninstall reset completion
 complete -c chop -n "not __fish_seen_subcommand_from $cmds" -a "$cmds"
 
 # gain
@@ -2426,6 +2470,8 @@ complete -c chop -n "__fish_seen_subcommand_from gain" -l unskip     -d "Remove 
 complete -c chop -n "__fish_seen_subcommand_from gain" -l delete     -d "Delete history for command" -r
 complete -c chop -n "__fish_seen_subcommand_from gain" -l no-track   -d "Stop tracking command"      -r
 complete -c chop -n "__fish_seen_subcommand_from gain" -l resume-track -d "Resume tracking command"  -r
+complete -c chop -n "__fish_seen_subcommand_from gain" -l projects    -d "Per-project savings breakdown"
+complete -c chop -n "__fish_seen_subcommand_from gain" -l project     -d "Filter by project root"    -r
 
 # filter subcommands
 complete -c chop -n "__fish_seen_subcommand_from filter; and not __fish_seen_subcommand_from path init edit add remove test new" \
@@ -2444,6 +2490,10 @@ complete -c chop -n "__fish_seen_subcommand_from config; and __fish_seen_subcomm
 # local subcommands
 complete -c chop -n "__fish_seen_subcommand_from local; and not __fish_seen_subcommand_from add remove clear edit" \
     -a "add remove clear edit"
+
+# global subcommands
+complete -c chop -n "__fish_seen_subcommand_from global; and not __fish_seen_subcommand_from add remove" \
+    -a "add remove"
 
 # init flags
 complete -c chop -n "__fish_seen_subcommand_from init setup" \
@@ -2469,9 +2519,10 @@ Register-ArgumentCompleter -Native -CommandName chop -ScriptBlock {
     $cmd   = if ($words.Count -ge 2) { $words[1].Value } else { "" }
 
     $topCmds = @(
-        'help','version','gain','capture','config','filter','local',
-        'list','diff','init','update','auto-update','enable','disable',
-        'doctor','uninstall','reset','completion'
+        'help','version','gain','capture','config','filter','local','global',
+        'list','diff','init','setup','update','auto-update','enable','disable',
+        'doctor','fix-hooks','unwrap-hooks','hook-audit','agent-info','changelog',
+        'uninstall','reset','completion'
     )
 
     $complete = {
@@ -2489,7 +2540,7 @@ Register-ArgumentCompleter -Native -CommandName chop -ScriptBlock {
         'gain' {
             & $complete @('--history','--summary','--unchopped','--verbose','--all',
                           '--since','--limit','--export','--skip','--unskip',
-                          '--delete','--no-track','--resume-track')
+                          '--delete','--no-track','--resume-track','--projects','--project')
         }
         'filter' {
             if ($words.Count -eq 3) {
@@ -2507,7 +2558,10 @@ Register-ArgumentCompleter -Native -CommandName chop -ScriptBlock {
         'local' {
             if ($words.Count -eq 3) { & $complete @('add','remove','clear','edit') }
         }
-        'init' { & $complete @('--global','--gemini','--codex','--antigravity','--uninstall','--status') }
+        'global' {
+            if ($words.Count -eq 3) { & $complete @('add','remove') }
+        }
+        'init','setup' { & $complete @('--global','--gemini','--codex','--antigravity','--uninstall','--status') }
         'completion' { & $complete @('bash','zsh','fish','powershell') }
         'diff' { & $complete @('--stdin') }
         'uninstall' { & $complete @('--keep-data') }

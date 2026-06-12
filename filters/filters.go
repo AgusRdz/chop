@@ -6,6 +6,20 @@ import (
 	"github.com/AgusRdz/chop/config"
 )
 
+// NormalizeCommand strips path prefixes and .exe suffix from a command name.
+// This ensures filters.Get and the hook's shouldWrap agree on the lookup key
+// so that path-qualified invocations like "./gradlew" or "C:/bin/acli.exe"
+// resolve to their registered filter.
+func NormalizeCommand(command string) string {
+	if i := strings.LastIndexAny(command, `/\`); i >= 0 {
+		command = command[i+1:]
+	}
+	if strings.HasSuffix(strings.ToLower(command), ".exe") {
+		command = command[:len(command)-4]
+	}
+	return command
+}
+
 // FilterFunc takes raw command output and returns filtered output.
 type FilterFunc func(raw string) (string, error)
 
@@ -45,7 +59,7 @@ func HasFilter(command string, args []string) bool {
 }
 
 func get(command string, args []string) FilterFunc {
-	e, ok := registry[command]
+	e, ok := registry[NormalizeCommand(command)]
 	if !ok {
 		return nil
 	}
@@ -182,7 +196,7 @@ func getGitFilter(args []string) FilterFunc {
 	case "diff":
 		return filterGitDiff
 	case "show":
-		return filterGitDiff
+		return filterGitShow
 	case "branch":
 		return filterGitBranch
 	case "push":

@@ -24,15 +24,44 @@ if (-not $env:CHOP_VERSION) {
 }
 
 $Url = "https://github.com/$Repo/releases/download/$($env:CHOP_VERSION)/$Binary"
+$ChecksumsUrl = "https://github.com/$Repo/releases/download/$($env:CHOP_VERSION)/checksums.txt"
 
 Write-Host "installing chop $($env:CHOP_VERSION) (windows/$Arch)..."
 
 # Create install dir
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 
-# Download binary
 $Destination = Join-Path $InstallDir "chop.exe"
-Invoke-WebRequest -Uri $Url -OutFile $Destination
+$TmpDestination = "$Destination.tmp"
+
+# Download binary to temp file
+Invoke-WebRequest -Uri $Url -OutFile $TmpDestination
+
+# Verify SHA256 checksum before installing
+try {
+    $ChecksumsContent = Invoke-RestMethod $ChecksumsUrl
+} catch {
+    Write-Error "failed to download checksums.txt: $_"
+    Remove-Item -Force $TmpDestination -ErrorAction SilentlyContinue
+    exit 1
+}
+
+$ExpectedLine = $ChecksumsContent -split "`n" | Where-Object { $_ -match "\s$([regex]::Escape($Binary))$" } | Select-Object -First 1
+if (-not $ExpectedLine) {
+    Write-Error "checksum not found for $Binary"
+    Remove-Item -Force $TmpDestination -ErrorAction SilentlyContinue
+    exit 1
+}
+$Expected = ($ExpectedLine -split '\s+')[0].Trim()
+
+$Actual = (Get-FileHash -Algorithm SHA256 $TmpDestination).Hash.ToLower()
+if ($Actual -ne $Expected) {
+    Write-Error "checksum mismatch for ${Binary}: expected $Expected, got $Actual"
+    Remove-Item -Force $TmpDestination -ErrorAction SilentlyContinue
+    exit 1
+}
+
+Move-Item -Force $TmpDestination $Destination
 
 Write-Host "installed chop to $Destination"
 Write-Host ""

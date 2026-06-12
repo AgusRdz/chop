@@ -48,6 +48,44 @@ var pipeRedirectOperators = []string{" | ", " > ", " >> ", " < "}
 // logicalSeparators chain independent commands — split and wrap each segment.
 var logicalSeparators = []string{" && ", " || ", " ; "}
 
+// isStreamingInvocation returns true for commands that produce continuous output
+// and must not be wrapped (chop buffers everything and would return nothing on timeout).
+func isStreamingInvocation(command string) bool {
+	lower := strings.ToLower(command)
+
+	// Follow flags used by tail, kubectl logs, docker logs, etc.
+	// " -f" at end-of-string or followed by space covers: tail -f, kubectl logs -f, docker logs -f
+	if strings.HasSuffix(lower, " -f") || strings.Contains(lower, " -f ") {
+		return true
+	}
+	if strings.Contains(lower, " --follow") {
+		return true
+	}
+	// --watch without =false (e.g. jest --watch) but not --watch=false
+	if strings.Contains(lower, " --watch") && !strings.Contains(lower, " --watch=false") && !strings.Contains(lower, " --watch=0") {
+		return true
+	}
+
+	// stern follows by default
+	if strings.HasPrefix(lower, "stern ") || lower == "stern" {
+		return true
+	}
+
+	// docker compose up without -d/--detach
+	if (strings.HasPrefix(lower, "docker compose up") || strings.HasPrefix(lower, "docker-compose up")) &&
+		!strings.Contains(lower, " -d") && !strings.Contains(lower, " --detach") {
+		return true
+	}
+
+	// ping without -c/--count (infinite on Linux/macOS)
+	if strings.HasPrefix(lower, "ping ") &&
+		!strings.Contains(lower, " -c ") && !strings.Contains(lower, " --count ") {
+		return true
+	}
+
+	return false
+}
+
 // quoteState tracks parser position relative to shell quoting.
 type quoteState int
 
@@ -268,6 +306,10 @@ func shouldWrap(command string) bool {
 		if strings.HasPrefix(command, prefix) {
 			return false
 		}
+	}
+	// Streaming/follow invocations buffer indefinitely — never wrap them.
+	if isStreamingInvocation(command) {
+		return false
 	}
 	baseCmd := command
 

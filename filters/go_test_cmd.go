@@ -46,21 +46,24 @@ func filterGoTestCmd(raw string) (string, error) {
 		failed    int
 		skipped   int
 		totalTime string
-		// Track current test output: between "=== RUN" and "--- PASS/FAIL"
+		// Track current test output: between "=== RUN" / "--- FAIL" and the next marker.
 		currentTestName   string
 		currentTestOutput []string
+		// When true, currentTestOutput holds post-FAIL detail lines (non-verbose mode).
+		collectingFailDetails bool
 		// Collected failure blocks
 		failures []string
 	)
 
 	flushTest := func(isFail bool) {
-		if isFail && currentTestName != "" && len(currentTestOutput) > 0 {
+		if (isFail || collectingFailDetails) && len(currentTestOutput) > 0 {
 			for _, line := range currentTestOutput {
 				failures = append(failures, "  "+line)
 			}
 		}
 		currentTestName = ""
 		currentTestOutput = nil
+		collectingFailDetails = false
 	}
 
 	for _, line := range lines {
@@ -83,25 +86,28 @@ func filterGoTestCmd(raw string) (string, error) {
 			continue
 		}
 
-		// "--- PASS" - count and discard output
+		// "--- PASS" - count and discard output (also flushes any pending fail details)
 		if reGoTestPass.MatchString(trimmed) {
 			passed++
-			flushTest(false)
+			flushTest(collectingFailDetails)
 			continue
 		}
 
 		// "--- SKIP"
 		if reGoTestSkip.MatchString(trimmed) {
 			skipped++
-			flushTest(false)
+			flushTest(collectingFailDetails)
 			continue
 		}
 
-		// "--- FAIL" - count and keep output
+		// "--- FAIL" - flush verbose pre-marker output, then capture post-marker details
 		if m := reGoTestFail.FindStringSubmatch(trimmed); m != nil {
 			failed++
+			flushTest(true) // flush any pre-marker lines (verbose mode)
 			failures = append(failures, fmt.Sprintf("FAIL: %s (%s)", m[1], m[2]))
-			flushTest(true)
+			// Enter detail-capture mode for non-verbose output (details follow the marker)
+			currentTestName = m[1]
+			collectingFailDetails = true
 			continue
 		}
 
@@ -111,6 +117,7 @@ func filterGoTestCmd(raw string) (string, error) {
 			if len(parts) >= 3 {
 				totalTime = parts[len(parts)-1]
 			}
+			flushTest(true) // flush any pending non-verbose fail details
 			continue
 		}
 
@@ -120,11 +127,13 @@ func filterGoTestCmd(raw string) (string, error) {
 			if len(parts) >= 3 {
 				totalTime = parts[len(parts)-1]
 			}
+			flushTest(true) // flush any pending non-verbose fail details
 			continue
 		}
 
 		// Bare "PASS" / "FAIL"
 		if reGoTestPASS.MatchString(trimmed) || reGoTestFAIL.MatchString(trimmed) {
+			flushTest(collectingFailDetails)
 			continue
 		}
 
@@ -139,6 +148,8 @@ func filterGoTestCmd(raw string) (string, error) {
 			continue
 		}
 	}
+	// Flush any trailing non-verbose fail details not terminated by a package line.
+	flushTest(collectingFailDetails)
 
 	total := passed + failed + skipped
 

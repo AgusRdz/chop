@@ -259,3 +259,59 @@ func TestFilterGradleTestEmpty(t *testing.T) {
 		t.Errorf("expected empty output, got %q", got)
 	}
 }
+
+func TestGetGradleFilterRoutesTasksAfterOptions(t *testing.T) {
+	raw := `> Task :test
+3 tests completed, 0 failed
+BUILD SUCCESSFUL in 1s`
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "leading flag", args: []string{"--no-daemon", "test"}},
+		{name: "qualified task", args: []string{"clean", ":app:test"}},
+		{name: "option with value", args: []string{"-p", "sample", "test"}},
+		{name: "inline option value", args: []string{"--console=plain", "test"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getGradleFilter(tt.args)(raw)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != "all 3 tests passed" {
+				t.Errorf("expected Gradle test filter for %v, got: %q", tt.args, got)
+			}
+		})
+	}
+}
+
+func TestGetGradleFilterSkipsOptionValues(t *testing.T) {
+	raw := `> Task :build
+BUILD SUCCESSFUL in 1s
+1 actionable task: 1 executed`
+
+	got, err := getGradleFilter([]string{"--project-dir", "test", "build"})(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "BUILD SUCCESSFUL (1s), 1 tasks" {
+		t.Errorf("expected Gradle build filter when test is an option value, got: %q", got)
+	}
+}
+
+func TestGetGradleFilterRoutesDependenciesWithConfiguration(t *testing.T) {
+	raw := `> Task :dependencies
++--- org.example:library:1.0
+BUILD SUCCESSFUL in 1s`
+
+	got, err := getGradleFilter([]string{"dependencies", "--configuration", "test"})(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(got, "1 direct") {
+		t.Errorf("expected Gradle dependencies filter, got: %q", got)
+	}
+}

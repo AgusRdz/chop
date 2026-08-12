@@ -34,8 +34,8 @@ var (
 
 	// --- gradle test specific ---
 	// Test result line: "X tests completed, Y failed" or "X tests completed, Y failed, Z skipped"
-	reGradleTestResult = regexp.MustCompile(`(\d+)\s+tests?\s+completed`)
-	reGradleTestFailed = regexp.MustCompile(`(\d+)\s+failed`)
+	reGradleTestResult  = regexp.MustCompile(`(\d+)\s+tests?\s+completed`)
+	reGradleTestFailed  = regexp.MustCompile(`(\d+)\s+failed`)
 	reGradleTestSkipped = regexp.MustCompile(`(\d+)\s+skipped`)
 	// Individual test failure: "ClassName > testMethod FAILED"
 	reGradleTestFailLine = regexp.MustCompile(`^\s*(\S+)\s*>\s*(\S+.*?)\s+FAILED\s*$`)
@@ -52,18 +52,74 @@ var (
 )
 
 func getGradleFilter(args []string) FilterFunc {
-	if len(args) == 0 {
-		return filterGradleBuild
+	selected := FilterFunc(filterGradleBuild)
+	for _, task := range gradleTasks(args) {
+		switch gradleTaskName(task) {
+		case "test":
+			return filterGradleTest
+		case "dependencies":
+			selected = filterGradleDeps
+		}
 	}
-	switch args[0] {
-	case "test":
-		return filterGradleTest
-	case "dependencies":
-		return filterGradleDeps
-	case "build", "assemble", "compileJava", "compileKotlin", "jar", "war", "clean":
-		return filterGradleBuild
+	return selected
+}
+
+// gradleTasks returns task selectors while excluding CLI options and their
+// separate values. Task selectors may be qualified (for example :app:test)
+// and may appear after global options or other tasks.
+func gradleTasks(args []string) []string {
+	var tasks []string
+	skipNext := false
+
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			skipNext = gradleOptionTakesValue(arg)
+			continue
+		}
+		tasks = append(tasks, arg)
+	}
+
+	return tasks
+}
+
+func gradleTaskName(selector string) string {
+	if i := strings.LastIndex(selector, ":"); i >= 0 {
+		return selector[i+1:]
+	}
+	return selector
+}
+
+func gradleOptionTakesValue(arg string) bool {
+	if strings.Contains(arg, "=") {
+		return false
+	}
+
+	switch arg {
+	case "-D", "--system-prop",
+		"-P", "--project-prop",
+		"-g", "--gradle-user-home",
+		"-p", "--project-dir",
+		"--project-cache-dir",
+		"-I", "--init-script",
+		"-x", "--exclude-task",
+		"--include-build",
+		"-M", "--write-verification-metadata",
+		"-F", "--dependency-verification",
+		"--update-locks",
+		"--console", "--warning-mode", "--priority",
+		"--max-workers",
+		"--configuration-cache-problems",
+		"--configuration-cache-entries-per-key",
+		"-b", "--build-file",
+		"-c", "--settings-file",
+		"--configuration", "--tests", "--args":
+		return true
 	default:
-		return filterGradleBuild
+		return false
 	}
 }
 
@@ -80,14 +136,14 @@ func filterGradleBuild(raw string) (string, error) {
 	lines := strings.Split(raw, "\n")
 
 	var (
-		errors       []string
-		warnings     []string
-		failedTasks  []string
-		errorDetails []string
-		result       string
-		elapsed      string
-		taskCount    string
-		inWhatWrong  bool
+		errors        []string
+		warnings      []string
+		failedTasks   []string
+		errorDetails  []string
+		result        string
+		elapsed       string
+		taskCount     string
+		inWhatWrong   bool
 		inSkipSection bool
 	)
 

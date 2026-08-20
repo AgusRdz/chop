@@ -335,3 +335,55 @@ func TestFilterMavenTestEmpty(t *testing.T) {
 		t.Errorf("expected empty output, got %q", got)
 	}
 }
+
+func TestGetMavenFilterRoutesGoalsAfterOptions(t *testing.T) {
+	raw := `[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0`
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "leading flag", args: []string{"-q", "test"}},
+		{name: "option with value", args: []string{"-pl", "service", "test"}},
+		{name: "multiple phases", args: []string{"clean", "test"}},
+		{name: "inline option value", args: []string{"--threads=2C", "test"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getMavenFilter(tt.args)(raw)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != "all 3 tests passed" {
+				t.Errorf("expected Maven test filter for %v, got: %q", tt.args, got)
+			}
+		})
+	}
+}
+
+func TestGetMavenFilterSkipsOptionValues(t *testing.T) {
+	raw := `[INFO] BUILD SUCCESS
+[INFO] Total time: 0.100 s`
+
+	got, err := getMavenFilter([]string{"--file", "test", "package"})(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != "BUILD SUCCESS (0.100 s)" {
+		t.Errorf("expected Maven build filter when test is an option value, got: %q", got)
+	}
+}
+
+func TestGetMavenFilterRoutesDependencyTreeAfterOptions(t *testing.T) {
+	raw := `[INFO] com.example:app:jar:1.0
+[INFO] +- org.example:library:jar:1.0:compile`
+
+	got, err := getMavenFilter([]string{"-q", "dependency:tree"})(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(got, "1 direct") {
+		t.Errorf("expected Maven dependency tree filter, got: %q", got)
+	}
+}

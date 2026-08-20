@@ -59,18 +59,65 @@ var (
 )
 
 func getMavenFilter(args []string) FilterFunc {
-	if len(args) == 0 {
-		return filterMavenBuild
+	selected := FilterFunc(filterMavenBuild)
+	for _, goal := range mavenGoals(args) {
+		switch goal {
+		case "test":
+			return filterMavenTest
+		case "dependency:tree":
+			selected = filterMavenDepTree
+		}
 	}
-	switch args[0] {
-	case "test":
-		return filterMavenTest
-	case "dependency:tree":
-		return filterMavenDepTree
-	case "compile", "package", "install", "clean", "verify":
-		return filterMavenBuild
+	return selected
+}
+
+// mavenGoals returns lifecycle phases and plugin goals while excluding CLI
+// options and their separate values. Maven accepts options before, between,
+// and after goals, so checking args[0] misses commands such as "-q test" and
+// "clean test".
+func mavenGoals(args []string) []string {
+	var goals []string
+	skipNext := false
+
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			skipNext = mavenOptionTakesValue(arg)
+			continue
+		}
+		goals = append(goals, arg)
+	}
+
+	return goals
+}
+
+func mavenOptionTakesValue(arg string) bool {
+	if strings.Contains(arg, "=") {
+		return false
+	}
+
+	switch arg {
+	case "-f", "--file",
+		"-D", "--define",
+		"-P", "--activate-profiles",
+		"-s", "--settings",
+		"-gs", "--global-settings",
+		"-t", "--toolchains",
+		"-gt", "--global-toolchains",
+		"-rf", "--resume-from",
+		"-pl", "--projects",
+		"-l", "--log-file",
+		"-emp", "--encrypt-master-password",
+		"-ep", "--encrypt-password",
+		"-T", "--threads",
+		"-b", "--builder",
+		"--color":
+		return true
 	default:
-		return filterMavenBuild
+		return false
 	}
 }
 
@@ -187,14 +234,14 @@ func filterMavenTest(raw string) (string, error) {
 	lines := strings.Split(raw, "\n")
 
 	var (
-		failures    []string
-		inFailure   bool
-		totalRun    int
-		totalFail   int
-		totalErr    int
-		totalSkip   int
+		failures     []string
+		inFailure    bool
+		totalRun     int
+		totalFail    int
+		totalErr     int
+		totalSkip    int
 		foundSummary bool
-		elapsed     string
+		elapsed      string
 	)
 
 	for _, line := range lines {
@@ -304,7 +351,7 @@ func filterMavenDepTree(raw string) (string, error) {
 	lines := strings.Split(raw, "\n")
 
 	var (
-		directDeps    []string
+		directDeps      []string
 		transitiveCount int
 	)
 

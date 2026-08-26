@@ -51,38 +51,122 @@ var logicalSeparators = []string{" && ", " || ", " ; "}
 // isStreamingInvocation returns true for commands that produce continuous output
 // and must not be wrapped (chop buffers everything and would return nothing on timeout).
 func isStreamingInvocation(command string) bool {
-	lower := strings.ToLower(command)
+	baseCmd, args := splitHookInvocation(command)
+	baseCmd = strings.ToLower(baseCmd)
+	args = normalizeHookArgs(args)
 
-	// Follow flags used by tail, kubectl logs, docker logs, etc.
-	// " -f" at end-of-string or followed by space covers: tail -f, kubectl logs -f, docker logs -f
-	if strings.HasSuffix(lower, " -f") || strings.Contains(lower, " -f ") {
-		return true
-	}
-	if strings.Contains(lower, " --follow") {
-		return true
-	}
-	// --watch without =false (e.g. jest --watch) but not --watch=false
-	if strings.Contains(lower, " --watch") && !strings.Contains(lower, " --watch=false") && !strings.Contains(lower, " --watch=0") {
+	// Watch modes are streaming regardless of the runner. Match complete flags
+	// so finite options such as --watchAll=false and --watchman are not caught.
+	if hasEnabledWatchFlag(args) {
 		return true
 	}
 
 	// stern follows by default
-	if strings.HasPrefix(lower, "stern ") || lower == "stern" {
+	if baseCmd == "stern" {
 		return true
 	}
 
+	// -f and --follow are overloaded by many finite commands (for example
+	// mvn -f, git fetch -f, git log --follow, and rg --follow). They are
+	// streaming only for commands whose output-following mode chop must avoid.
+	if hasEnabledFollowFlag(args) {
+		switch baseCmd {
+		case "tail":
+			return true
+		case "kubectl":
+			return hasHookArg(args, "logs")
+		case "docker", "podman", "docker-compose":
+			return hasHookArg(args, "logs")
+		}
+	}
+
 	// docker compose up without -d/--detach
-	if (strings.HasPrefix(lower, "docker compose up") || strings.HasPrefix(lower, "docker-compose up")) &&
-		!strings.Contains(lower, " -d") && !strings.Contains(lower, " --detach") {
+	composeUp := (baseCmd == "docker" || baseCmd == "podman") && hasHookArgSequence(args, "compose", "up")
+	composeUp = composeUp || (baseCmd == "docker-compose" && len(args) > 0 && args[0] == "up")
+	if composeUp && !hasEnabledDetachFlag(args) {
 		return true
 	}
 
 	// ping without -c/--count (infinite on Linux/macOS)
-	if strings.HasPrefix(lower, "ping ") &&
-		!strings.Contains(lower, " -c ") && !strings.Contains(lower, " --count ") {
+	if baseCmd == "ping" && !hasPingCountFlag(args) {
 		return true
 	}
 
+	return false
+}
+
+func normalizeHookArgs(args []string) []string {
+	normalized := make([]string, len(args))
+	for i, arg := range args {
+		normalized[i] = strings.ToLower(strings.Trim(arg, `"'`))
+	}
+	return normalized
+}
+
+func hasHookArg(args []string, targets ...string) bool {
+	for _, arg := range args {
+		for _, target := range targets {
+			if arg == target {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasHookArgSequence(args []string, first, second string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == first && args[i+1] == second {
+			return true
+		}
+	}
+	return false
+}
+
+func hasEnabledFollowFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "-f" || arg == "--follow" {
+			return true
+		}
+		if strings.HasPrefix(arg, "--follow=") {
+			value := strings.TrimPrefix(arg, "--follow=")
+			if value != "false" && value != "0" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasEnabledWatchFlag(args []string) bool {
+	for _, arg := range args {
+		switch arg {
+		case "--watch", "--watch=true", "--watch=1",
+			"--watchall", "--watchall=true", "--watchall=1":
+			return true
+		}
+	}
+	return false
+}
+
+func hasEnabledDetachFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "-d" || arg == "--detach" || arg == "--detach=true" || arg == "--detach=1" {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPingCountFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "-c" || arg == "--count" || strings.HasPrefix(arg, "--count=") {
+			return true
+		}
+		if strings.HasPrefix(arg, "-c") && len(arg) > 2 {
+			return true
+		}
+	}
 	return false
 }
 
@@ -319,9 +403,15 @@ func shouldWrap(command string) bool {
 			return false
 		}
 	}
-	baseCmd := command
+	baseCmd, _ := splitHookInvocation(command)
+	return supportedCommands[baseCmd]
+}
 
-	// Find the end of the base command, respecting quotes
+// splitHookInvocation returns the normalized executable name and its raw
+// whitespace-delimited arguments. The executable scan respects quoted paths,
+// matching the hook's existing path and .exe handling.
+func splitHookInvocation(command string) (string, []string) {
+	// Find the end of the base command, respecting quotes.
 	state := quoteNone
 	endIdx := len(command)
 	for i := 0; i < len(command); i++ {
@@ -349,7 +439,7 @@ func shouldWrap(command string) bool {
 		}
 	}
 foundEnd:
-	baseCmd = command[:endIdx]
+	baseCmd := command[:endIdx]
 
 	if len(baseCmd) >= 2 && ((baseCmd[0] == '"' && baseCmd[len(baseCmd)-1] == '"') || (baseCmd[0] == '\'' && baseCmd[len(baseCmd)-1] == '\'')) {
 		baseCmd = baseCmd[1 : len(baseCmd)-1]
@@ -360,7 +450,7 @@ foundEnd:
 	if strings.HasSuffix(strings.ToLower(baseCmd), ".exe") {
 		baseCmd = baseCmd[:len(baseCmd)-4]
 	}
-	return supportedCommands[baseCmd]
+	return baseCmd, strings.Fields(command[endIdx:])
 }
 
 // splitLogical splits a command on logical separators (" && ", " || ", " ; "),

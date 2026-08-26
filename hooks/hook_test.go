@@ -105,17 +105,54 @@ func TestPipePassthrough(t *testing.T) {
 func TestStreamingPassthrough(t *testing.T) {
 	tests := []string{
 		"tail -f /var/log/app.log",
+		"tail --follow=name /var/log/app.log",
 		"kubectl logs -f pod/my-pod",
+		"kubectl logs --follow pod/my-pod",
 		"docker logs -f my-container",
+		"docker logs --follow=true my-container",
+		"npm test -- --watchAll",
 		"docker compose up",
 		"stern my-pod",
 		"ping google.com",
+		"ping -n google.com",
 	}
 	for _, cmd := range tests {
 		t.Run(cmd, func(t *testing.T) {
 			_, shouldModify, _ := processHookInput(makeInput(cmd))
 			if shouldModify {
 				t.Errorf("should not modify streaming command: %s", cmd)
+			}
+		})
+	}
+}
+
+func TestFiniteCommandsWithFollowLikeFlagsAreWrapped(t *testing.T) {
+	tests := []struct {
+		cmd      string
+		expected string
+	}{
+		{"mvn -f pom.xml test", "chop mvn -f pom.xml test"},
+		{"git fetch -f", "chop git fetch -f"},
+		{"git log --follow README.md", "chop git log --follow README.md"},
+		{"rg --follow pattern .", "chop rg --follow pattern ."},
+		{"npm test -- --watchAll=false", "chop npm test -- --watchAll=false"},
+		{"npm test -- --watchman", "chop npm test -- --watchman"},
+		{"kubectl apply -f manifest.yaml", "chop kubectl apply -f manifest.yaml"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.cmd, func(t *testing.T) {
+			output, shouldModify, _ := processHookInput(makeInput(tt.cmd))
+			if !shouldModify {
+				t.Fatalf("expected finite command to be modified: %s", tt.cmd)
+			}
+
+			var result hookOutput
+			if err := json.Unmarshal(output, &result); err != nil {
+				t.Fatalf("failed to parse output JSON: %v", err)
+			}
+			if result.HookSpecificOutput.UpdatedInput.Command != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result.HookSpecificOutput.UpdatedInput.Command)
 			}
 		})
 	}

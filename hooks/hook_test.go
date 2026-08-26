@@ -113,6 +113,9 @@ func TestStreamingPassthrough(t *testing.T) {
 		"npm test -- --watchAll",
 		"docker compose up",
 		"stern my-pod",
+		"aws logs tail /aws/lambda/my-fn --follow",
+		"argocd app logs my-app --follow",
+		"flux logs --follow",
 		"ping google.com",
 		"ping -n google.com",
 	}
@@ -138,6 +141,7 @@ func TestFiniteCommandsWithFollowLikeFlagsAreWrapped(t *testing.T) {
 		{"npm test -- --watchAll=false", "chop npm test -- --watchAll=false"},
 		{"npm test -- --watchman", "chop npm test -- --watchman"},
 		{"kubectl apply -f manifest.yaml", "chop kubectl apply -f manifest.yaml"},
+		{"aws s3 cp . s3://bucket --recursive --follow-symlinks", "chop aws s3 cp . s3://bucket --recursive --follow-symlinks"},
 	}
 
 	for _, tt := range tests {

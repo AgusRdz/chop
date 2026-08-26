@@ -77,6 +77,11 @@ func isStreamingInvocation(command string) bool {
 			return hasHookArg(args, "logs")
 		case "docker", "podman", "docker-compose":
 			return hasHookArg(args, "logs")
+		case "aws":
+			// aws logs tail --follow streams CloudWatch logs; other aws -f uses are finite.
+			return hasHookArgSequence(args, "logs", "tail")
+		case "argocd", "flux":
+			return hasHookArg(args, "logs")
 		}
 	}
 

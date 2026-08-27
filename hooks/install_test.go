@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -397,6 +398,88 @@ func TestBuildHookCommandFormat(t *testing.T) {
 	}
 	if strings.Contains(cmd, `\`) {
 		t.Errorf("hook command should not contain backslashes, got %q", cmd)
+	}
+}
+
+func TestPreferredHookBinaryPathPreservesStableSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires additional privileges on Windows")
+	}
+
+	dir := t.TempDir()
+	versionedPath := filepath.Join(dir, "Cellar", "chop", "1.0.0", "bin", "chop")
+	if err := os.MkdirAll(filepath.Dir(versionedPath), 0o755); err != nil {
+		t.Fatalf("failed to create versioned directory: %v", err)
+	}
+	if err := os.WriteFile(versionedPath, []byte("binary"), 0o755); err != nil {
+		t.Fatalf("failed to create versioned binary: %v", err)
+	}
+
+	stablePath := filepath.Join(dir, "bin", "chop")
+	if err := os.MkdirAll(filepath.Dir(stablePath), 0o755); err != nil {
+		t.Fatalf("failed to create stable directory: %v", err)
+	}
+	if err := os.Symlink(versionedPath, stablePath); err != nil {
+		t.Fatalf("failed to create stable symlink: %v", err)
+	}
+
+	got, err := preferredHookBinaryPath(versionedPath, "chop", func(name string) (string, error) {
+		return stablePath, nil
+	})
+	if err != nil {
+		t.Fatalf("preferredHookBinaryPath failed: %v", err)
+	}
+
+	want := strings.ReplaceAll(stablePath, "\\", "/")
+	if got != want {
+		t.Fatalf("got %q, want stable invocation path %q", got, want)
+	}
+}
+
+func TestPreferredHookBinaryPathRejectsDifferentExecutable(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, "chop")
+	otherExecutable := filepath.Join(dir, "other", "chop")
+	if err := os.WriteFile(executable, []byte("current"), 0o755); err != nil {
+		t.Fatalf("failed to create current executable: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(otherExecutable), 0o755); err != nil {
+		t.Fatalf("failed to create other directory: %v", err)
+	}
+	if err := os.WriteFile(otherExecutable, []byte("other"), 0o755); err != nil {
+		t.Fatalf("failed to create other executable: %v", err)
+	}
+
+	got, err := preferredHookBinaryPath(executable, "chop", func(name string) (string, error) {
+		return otherExecutable, nil
+	})
+	if err != nil {
+		t.Fatalf("preferredHookBinaryPath failed: %v", err)
+	}
+
+	want := strings.ReplaceAll(executable, "\\", "/")
+	if got != want {
+		t.Fatalf("got %q, want resolved current executable %q", got, want)
+	}
+}
+
+func TestPreferredHookBinaryPathFallsBackWhenInvocationIsMissing(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, "chop")
+	if err := os.WriteFile(executable, []byte("current"), 0o755); err != nil {
+		t.Fatalf("failed to create executable: %v", err)
+	}
+
+	got, err := preferredHookBinaryPath(executable, "chop", func(name string) (string, error) {
+		return "", os.ErrNotExist
+	})
+	if err != nil {
+		t.Fatalf("preferredHookBinaryPath failed: %v", err)
+	}
+
+	want := strings.ReplaceAll(executable, "\\", "/")
+	if got != want {
+		t.Fatalf("got %q, want resolved executable fallback %q", got, want)
 	}
 }
 

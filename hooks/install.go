@@ -237,7 +237,8 @@ func invokedExecutablePath(invokedAs string, lookPath func(string) (string, erro
 	return filepath.Abs(candidate)
 }
 
-func buildHookCommand() (string, error) {
+// ExpectedHookCommand returns the hook command for the current Chop invocation.
+func ExpectedHookCommand() (string, error) {
 	binPath, err := chopBinaryPath()
 	if err != nil {
 		return "", err
@@ -747,7 +748,7 @@ func removeChopAwareHooks(settingsPath string) error {
 }
 
 func installTo(settingsPath string) error {
-	hookCmd, err := buildHookCommand()
+	hookCmd, err := ExpectedHookCommand()
 	if err != nil {
 		return err
 	}

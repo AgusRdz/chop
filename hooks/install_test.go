@@ -385,10 +385,10 @@ func TestIsChopHook(t *testing.T) {
 	}
 }
 
-func TestBuildHookCommandFormat(t *testing.T) {
-	cmd, err := buildHookCommand()
+func TestExpectedHookCommandFormat(t *testing.T) {
+	cmd, err := ExpectedHookCommand()
 	if err != nil {
-		t.Fatalf("buildHookCommand failed: %v", err)
+		t.Fatalf("ExpectedHookCommand failed: %v", err)
 	}
 	if !strings.HasSuffix(cmd, " hook") {
 		t.Errorf("hook command should end with ' hook', got %q", cmd)

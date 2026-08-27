@@ -2,8 +2,8 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -2086,7 +2086,7 @@ func runDoctor() {
 	} else {
 		// 2. Check if hook path matches current binary
 		hookCmd := hooks.GetHookCommand()
-		expectedCmd, err := buildExpectedHookCmd()
+		expectedCmd, err := hooks.ExpectedHookCommand()
 		if err == nil && hookCmd != expectedCmd {
 			fmt.Println("[!] hook points to wrong binary")
 			fmt.Printf("    current: %s\n", hookCmd)
@@ -2241,7 +2241,7 @@ func runFixHooks() {
 		fmt.Println("Standard install selected.")
 		fmt.Println("chop is already installed. Remove or merge the competing hooks manually, then run `chop doctor` to verify.")
 	case "2":
-		chopBin, err := buildExpectedHookCmd()
+		chopBin, err := hooks.ExpectedHookCommand()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "chop: failed to determine binary path: %v\n", err)
 			os.Exit(1)
@@ -2582,19 +2582,6 @@ func sanitizeFilename(s string) string {
 	s = strings.ReplaceAll(s, "\\", "_")
 	s = strings.ReplaceAll(s, "..", "__")
 	return s
-}
-
-func buildExpectedHookCmd() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-	exe, err = filepath.EvalSymlinks(exe)
-	if err != nil {
-		return "", err
-	}
-	exe = strings.ReplaceAll(exe, "\\", "/")
-	return fmt.Sprintf(`"%s" hook`, exe), nil
 }
 
 func printHelp() {

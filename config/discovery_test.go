@@ -4,9 +4,92 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestPreferredExecutablePathPreservesStableSymlink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlink creation requires additional privileges on Windows")
+	}
+
+	dir := t.TempDir()
+	versionedPath := filepath.Join(dir, "Cellar", "chop", "1.0.0", "bin", "chop")
+	if err := os.MkdirAll(filepath.Dir(versionedPath), 0o755); err != nil {
+		t.Fatalf("failed to create versioned directory: %v", err)
+	}
+	if err := os.WriteFile(versionedPath, []byte("binary"), 0o755); err != nil {
+		t.Fatalf("failed to create versioned binary: %v", err)
+	}
+
+	stablePath := filepath.Join(dir, "bin", "chop")
+	if err := os.MkdirAll(filepath.Dir(stablePath), 0o755); err != nil {
+		t.Fatalf("failed to create stable directory: %v", err)
+	}
+	if err := os.Symlink(versionedPath, stablePath); err != nil {
+		t.Fatalf("failed to create stable symlink: %v", err)
+	}
+
+	got, err := preferredExecutablePath(versionedPath, "chop", func(name string) (string, error) {
+		return stablePath, nil
+	})
+	if err != nil {
+		t.Fatalf("preferredExecutablePath failed: %v", err)
+	}
+
+	want := strings.ReplaceAll(stablePath, "\\", "/")
+	if got != want {
+		t.Fatalf("got %q, want stable invocation path %q", got, want)
+	}
+}
+
+func TestPreferredExecutablePathRejectsDifferentExecutable(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, "chop")
+	otherExecutable := filepath.Join(dir, "other", "chop")
+	if err := os.WriteFile(executable, []byte("current"), 0o755); err != nil {
+		t.Fatalf("failed to create current executable: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(otherExecutable), 0o755); err != nil {
+		t.Fatalf("failed to create other directory: %v", err)
+	}
+	if err := os.WriteFile(otherExecutable, []byte("other"), 0o755); err != nil {
+		t.Fatalf("failed to create other executable: %v", err)
+	}
+
+	got, err := preferredExecutablePath(executable, "chop", func(name string) (string, error) {
+		return otherExecutable, nil
+	})
+	if err != nil {
+		t.Fatalf("preferredExecutablePath failed: %v", err)
+	}
+
+	want := strings.ReplaceAll(executable, "\\", "/")
+	if got != want {
+		t.Fatalf("got %q, want resolved current executable %q", got, want)
+	}
+}
+
+func TestPreferredExecutablePathFallsBackWhenInvocationIsMissing(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, "chop")
+	if err := os.WriteFile(executable, []byte("current"), 0o755); err != nil {
+		t.Fatalf("failed to create executable: %v", err)
+	}
+
+	got, err := preferredExecutablePath(executable, "chop", func(name string) (string, error) {
+		return "", os.ErrNotExist
+	})
+	if err != nil {
+		t.Fatalf("preferredExecutablePath failed: %v", err)
+	}
+
+	want := strings.ReplaceAll(executable, "\\", "/")
+	if got != want {
+		t.Fatalf("got %q, want resolved executable fallback %q", got, want)
+	}
+}
 
 // --- DiscoveryPath ---
 
@@ -42,9 +125,7 @@ func TestDiscoveryPath_UnderHomeDir(t *testing.T) {
 // --- WriteDiscoveryInfo ---
 
 func TestWriteDiscoveryInfo_CreatesFileWithCorrectContent(t *testing.T) {
-	// We cannot override os.UserHomeDir() or os.Executable() without changing the
-	// source, so we call WriteDiscoveryInfo with a known version string and verify
-	// the resulting file is valid JSON with the expected version field.
+	t.Setenv("HOME", t.TempDir())
 	const testVersion = "v1.2.3-test"
 
 	err := WriteDiscoveryInfo(testVersion)
@@ -74,9 +155,17 @@ func TestWriteDiscoveryInfo_CreatesFileWithCorrectContent(t *testing.T) {
 	if info.Path == "" {
 		t.Error("expected non-empty Path in discovery info")
 	}
+	wantPath, err := ExecutablePath()
+	if err != nil {
+		t.Fatalf("ExecutablePath error: %v", err)
+	}
+	if info.Path != wantPath {
+		t.Errorf("expected executable path %q, got %q", wantPath, info.Path)
+	}
 }
 
 func TestWriteDiscoveryInfo_FileIsValidJSON(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	err := WriteDiscoveryInfo("vtest")
 	if err != nil {
 		t.Fatalf("WriteDiscoveryInfo returned error: %v", err)

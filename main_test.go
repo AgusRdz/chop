@@ -2,9 +2,58 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/AgusRdz/chop/hooks"
 )
+
+func TestRunGlobalInitStatusDoesNotInstall(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	if err := runGlobalInit([]string{"--status"}); err != nil {
+		t.Fatalf("runGlobalInit --status failed: %v", err)
+	}
+
+	for _, path := range []string{
+		filepath.Join(home, ".claude", "settings.json"),
+		filepath.Join(home, ".chop", "path.json"),
+	} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("status should not create %s", path)
+		}
+	}
+}
+
+func TestRunGlobalInitUninstall(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	settingsPath := filepath.Join(home, ".claude", "settings.json")
+	if err := os.MkdirAll(filepath.Dir(settingsPath), 0o700); err != nil {
+		t.Fatalf("failed to create settings directory: %v", err)
+	}
+	settings := `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"chop hook"}]}]}}`
+	if err := os.WriteFile(settingsPath, []byte(settings), 0o600); err != nil {
+		t.Fatalf("failed to write settings: %v", err)
+	}
+
+	if err := runGlobalInit([]string{"--uninstall"}); err != nil {
+		t.Fatalf("runGlobalInit --uninstall failed: %v", err)
+	}
+	if installed, _ := hooks.IsInstalled(); installed {
+		t.Fatal("global hook should be uninstalled")
+	}
+}
+
+func TestRunGlobalInitRejectsUnknownFlag(t *testing.T) {
+	err := runGlobalInit([]string{"--unknown"})
+	if err == nil || !strings.Contains(err.Error(), "unknown flag") {
+		t.Fatalf("expected unknown flag error, got %v", err)
+	}
+}
 
 // --- sanitizeFilename ---
 

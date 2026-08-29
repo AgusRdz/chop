@@ -1969,11 +1969,7 @@ func filterNew(command string) {
 }
 
 func runAgentInfo() {
-	exe, err := config.ExecutablePath()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "chop: failed to determine executable path: %v\n", err)
-		os.Exit(1)
-	}
+	exe, _ := config.ExecutablePath()
 
 	type hookInfo struct {
 		Name      string `json:"name"`

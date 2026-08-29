@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -191,50 +190,7 @@ func GetHookCommand() string {
 }
 
 func chopBinaryPath() (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		return "", fmt.Errorf("failed to get executable path: %w", err)
-	}
-	return preferredHookBinaryPath(exe, os.Args[0], exec.LookPath)
-}
-
-// preferredHookBinaryPath keeps a stable invocation path (for example,
-// /opt/homebrew/bin/chop) when it points to the running executable. Package
-// managers commonly update that symlink while removing the versioned target,
-// so resolving it into the Cellar would leave installed hooks stale.
-func preferredHookBinaryPath(executable, invokedAs string, lookPath func(string) (string, error)) (string, error) {
-	resolved, err := filepath.EvalSymlinks(executable)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve symlinks: %w", err)
-	}
-
-	if candidate, err := invokedExecutablePath(invokedAs, lookPath); err == nil {
-		resolvedInfo, resolvedErr := os.Stat(resolved)
-		candidateInfo, candidateErr := os.Stat(candidate)
-		if resolvedErr == nil && candidateErr == nil && os.SameFile(resolvedInfo, candidateInfo) {
-			return strings.ReplaceAll(candidate, "\\", "/"), nil
-		}
-	}
-
-	// Convert backslashes to forward slashes for Claude Code compatibility
-	return strings.ReplaceAll(resolved, "\\", "/"), nil
-}
-
-func invokedExecutablePath(invokedAs string, lookPath func(string) (string, error)) (string, error) {
-	if invokedAs == "" {
-		return "", fmt.Errorf("empty executable invocation")
-	}
-
-	candidate := invokedAs
-	if !filepath.IsAbs(candidate) && filepath.Base(candidate) == candidate {
-		var err error
-		candidate, err = lookPath(candidate)
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return filepath.Abs(candidate)
+	return config.ExecutablePath()
 }
 
 // ExpectedHookCommand returns the hook command for the current Chop invocation.

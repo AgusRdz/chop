@@ -362,6 +362,36 @@ func TestIsChopHookAdditionalCases(t *testing.T) {
 			hookObj: map[string]interface{}{"command": "chop hook"},
 			want:    true,
 		},
+		{
+			name:    "quoted path with spaces",
+			hookObj: map[string]interface{}{"command": `"/home/user/CLI Tools/chop" hook`},
+			want:    true,
+		},
+		{
+			name:    "windows executable with backslashes",
+			hookObj: map[string]interface{}{"command": `"C:\Program Files\chop.exe" hook`},
+			want:    true,
+		},
+		{
+			name:    "binary name merely contains chop",
+			hookObj: map[string]interface{}{"command": "chopsticks hook"},
+			want:    false,
+		},
+		{
+			name:    "shell command mentions chop",
+			hookObj: map[string]interface{}{"command": "echo chop hook"},
+			want:    false,
+		},
+		{
+			name:    "agent-specific hook is not generic hook",
+			hookObj: map[string]interface{}{"command": "chop hook --codex"},
+			want:    false,
+		},
+		{
+			name:    "unbalanced executable quote",
+			hookObj: map[string]interface{}{"command": `"/home/user/bin/chop hook`},
+			want:    false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -369,6 +399,45 @@ func TestIsChopHookAdditionalCases(t *testing.T) {
 			got := isChopHook(tt.hookObj)
 			if got != tt.want {
 				t.Errorf("isChopHook(%v) = %v, want %v", tt.hookObj, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAgentSpecificHookDetectionIsExact(t *testing.T) {
+	detectors := []struct {
+		name   string
+		flag   string
+		detect func(map[string]interface{}) bool
+	}{
+		{name: "gemini", flag: "--gemini", detect: isChopGeminiHook},
+		{name: "codex", flag: "--codex", detect: isChopCodexHook},
+		{name: "antigravity", flag: "--antigravity", detect: isChopAntigravityHook},
+	}
+
+	for _, detector := range detectors {
+		t.Run(detector.name, func(t *testing.T) {
+			cases := []struct {
+				name    string
+				command string
+				want    bool
+			}{
+				{name: "bare executable", command: "chop hook " + detector.flag, want: true},
+				{name: "quoted path", command: `"/opt/CLI Tools/chop" hook ` + detector.flag, want: true},
+				{name: "windows executable", command: `"C:\Tools\chop.exe" hook ` + detector.flag, want: true},
+				{name: "lookalike binary", command: "chopsticks hook " + detector.flag, want: false},
+				{name: "shell command", command: "echo chop hook " + detector.flag, want: false},
+				{name: "missing agent flag", command: "chop hook", want: false},
+				{name: "extra argument", command: "chop hook " + detector.flag + " --verbose", want: false},
+			}
+
+			for _, tc := range cases {
+				t.Run(tc.name, func(t *testing.T) {
+					got := detector.detect(map[string]interface{}{"command": tc.command})
+					if got != tc.want {
+						t.Errorf("detect(%q) = %v, want %v", tc.command, got, tc.want)
+					}
+				})
 			}
 		})
 	}

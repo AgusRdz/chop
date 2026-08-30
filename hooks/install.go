@@ -11,9 +11,48 @@ import (
 	"github.com/AgusRdz/chop/config"
 )
 
-// chopHookIdentifier is used to detect chop hook entries in settings.json.
-// We look for commands containing "chop" that end with " hook".
+// chopBinaryName is used to identify direct chop hook entries in settings.json.
 const chopBinaryName = "chop"
+
+// isDirectChopHookCommand reports whether command is exactly a chop executable
+// followed by the expected hook arguments. Hook management mutates settings, so
+// substring matches must not claim unrelated commands such as `chopsticks hook`.
+func isDirectChopHookCommand(command string, hookArgs ...string) bool {
+	if len(hookArgs) == 0 {
+		return false
+	}
+
+	command = strings.TrimSpace(command)
+	suffix := " " + strings.Join(hookArgs, " ")
+	if !strings.HasSuffix(command, suffix) {
+		return false
+	}
+
+	executable := strings.TrimSpace(strings.TrimSuffix(command, suffix))
+	if executable == "" {
+		return false
+	}
+
+	quoted := false
+	if executable[0] == '\'' || executable[0] == '"' {
+		quote := executable[0]
+		if len(executable) < 2 || executable[len(executable)-1] != quote {
+			return false
+		}
+		executable = executable[1 : len(executable)-1]
+		quoted = true
+	}
+
+	if executable == "" || strings.ContainsAny(executable, "\"'\r\n") {
+		return false
+	}
+	if !quoted && strings.ContainsAny(executable, " \t") {
+		return false
+	}
+
+	base := filepath.Base(strings.ReplaceAll(executable, "\\", "/"))
+	return base == chopBinaryName || strings.EqualFold(base, chopBinaryName+".exe")
+}
 
 // Install registers the chop hook in ~/.claude/settings.json.
 func Install(version string) {
@@ -239,7 +278,7 @@ func isChopHook(hookObj map[string]interface{}) bool {
 	if !ok {
 		return false
 	}
-	return strings.Contains(cmd, chopBinaryName) && strings.HasSuffix(cmd, " hook")
+	return isDirectChopHookCommand(cmd, "hook")
 }
 
 // isChopAwareHook returns true if the hook is either a direct chop invocation or a

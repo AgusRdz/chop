@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/AgusRdz/chop/config"
 )
@@ -111,7 +110,7 @@ func isChopAntigravityHook(hookObj map[string]interface{}) bool {
 	if !ok {
 		return false
 	}
-	return strings.Contains(cmd, chopBinaryName) && strings.Contains(cmd, "hook") && strings.Contains(cmd, "--antigravity")
+	return isDirectChopHookCommand(cmd, "hook", "--antigravity")
 }
 
 func antigravityInstallTo(settingsPath string) error {

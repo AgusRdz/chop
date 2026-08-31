@@ -218,7 +218,7 @@ func TestInstallAddsToBashMatcherWithOtherHooks(t *testing.T) {
 					"hooks": []interface{}{
 						map[string]interface{}{
 							"type":    "command",
-							"command": "some-linter hook",
+							"command": "chopsticks hook",
 						},
 					},
 				},
@@ -271,7 +271,7 @@ func TestUninstallPreservesOtherHooks(t *testing.T) {
 					"hooks": []interface{}{
 						map[string]interface{}{
 							"type":    "command",
-							"command": "some-linter hook",
+							"command": "chopsticks hook",
 						},
 						map[string]interface{}{
 							"type":    "command",
@@ -303,7 +303,7 @@ func TestUninstallPreservesOtherHooks(t *testing.T) {
 	}
 
 	remaining := hooksArr[0].(map[string]interface{})
-	if remaining["command"] != "some-linter hook" {
+	if remaining["command"] != "chopsticks hook" {
 		t.Errorf("wrong hook preserved: %v", remaining["command"])
 	}
 }

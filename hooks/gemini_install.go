@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/AgusRdz/chop/config"
 )
@@ -110,7 +109,7 @@ func isChopGeminiHook(hookObj map[string]interface{}) bool {
 	if !ok {
 		return false
 	}
-	return strings.Contains(cmd, chopBinaryName) && strings.Contains(cmd, "hook")
+	return isDirectChopHookCommand(cmd, "hook", "--gemini")
 }
 
 func geminiInstallTo(settingsPath string) error {

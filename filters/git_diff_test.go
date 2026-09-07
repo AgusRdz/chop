@@ -1,6 +1,7 @@
 package filters
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -54,34 +55,58 @@ index 3456789..cdefghi 100644
 		t.Fatal(err)
 	}
 
-	// Should show 3 files
-	if !strings.Contains(got, "3 files changed") {
-		t.Errorf("expected '3 files changed', got: %s", got)
+	// All three file diffs and their actual hunk content must survive —
+	// none of the context runs here are long enough to elide.
+	if got != strings.TrimSpace(raw) {
+		t.Errorf("expected full diff to pass through unchanged, got: %s", got)
+	}
+}
+
+func TestGitDiffElidesLongContextRuns(t *testing.T) {
+	var body strings.Builder
+	body.WriteString("diff --git a/src/big.go b/src/big.go\n")
+	body.WriteString("index 1234567..abcdefg 100644\n")
+	body.WriteString("--- a/src/big.go\n")
+	body.WriteString("+++ b/src/big.go\n")
+	body.WriteString("@@ -1,40 +1,40 @@\n")
+	body.WriteString(" package big\n")
+	for i := 0; i < 30; i++ {
+		fmt.Fprintf(&body, " unchanged line %d\n", i)
+	}
+	body.WriteString("-old line\n")
+	body.WriteString("+new line\n")
+
+	raw := body.String()
+
+	got, err := filterGitDiff(raw)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	// Check per-file stats
-	if !strings.Contains(got, "src/app.ts:") {
-		t.Errorf("expected src/app.ts in output, got: %s", got)
+	// Headers and the actual change must survive.
+	if !strings.Contains(got, "diff --git a/src/big.go b/src/big.go") {
+		t.Errorf("expected diff header to survive, got: %s", got)
 	}
-	if !strings.Contains(got, "package.json:") {
-		t.Errorf("expected package.json in output, got: %s", got)
-	}
-
-	// Verify +/- counts appear
-	lines := strings.Split(strings.TrimSpace(got), "\n")
-	lastLine := lines[len(lines)-1]
-	if !strings.HasPrefix(lastLine, "3 files changed") {
-		t.Errorf("expected summary line at end, got: %s", lastLine)
+	if !strings.Contains(got, "-old line") || !strings.Contains(got, "+new line") {
+		t.Errorf("expected changed lines to survive, got: %s", got)
 	}
 
-	// Token savings >= 60%
-	rawTokens := len(strings.Fields(raw))
-	filteredTokens := len(strings.Fields(got))
-	savings := 100.0 - (float64(filteredTokens)/float64(rawTokens))*100.0
-	if savings < 60.0 {
-		t.Errorf("expected >=60%% savings, got %.1f%%", savings)
+	// The long unchanged run must be elided, not silently dropped.
+	if !strings.Contains(got, "unchanged lines elided") {
+		t.Errorf("expected elision marker for long context run, got: %s", got)
 	}
-	t.Logf("token savings: %.1f%% (%d -> %d)", savings, rawTokens, filteredTokens)
+
+	// A few lines of context should remain on each side of the elision.
+	if !strings.Contains(got, "unchanged line 0") {
+		t.Errorf("expected leading context to survive, got: %s", got)
+	}
+	if !strings.Contains(got, "unchanged line 29") {
+		t.Errorf("expected trailing context to survive, got: %s", got)
+	}
+
+	if len(got) >= len(raw) {
+		t.Errorf("expected elided output to be shorter than raw: got %d, raw %d", len(got), len(raw))
+	}
 }
 
 func TestGitDiffShortPassthrough(t *testing.T) {

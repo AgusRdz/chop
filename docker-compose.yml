@@ -7,8 +7,24 @@ services:
       - go-build-cache:/root/.cache/go-build
     working_dir: /app
 
+  pi:
+    build:
+      context: .
+      dockerfile: Dockerfile.pi
+    volumes:
+      - .:/app
+      - pi-config:/root/.pi
+    working_dir: /app
+    environment:
+      - ANTHROPIC_API_KEY
+    ports:
+      - "53692:53692"
+    command: ["sleep", "infinity"]
+
 volumes:
   go-cache:
     name: go-pkg-cache
   go-build-cache:
     name: go-build-cache
+  pi-config:
+    name: pi-config-cache

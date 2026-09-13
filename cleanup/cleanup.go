@@ -25,6 +25,9 @@ func Uninstall(keepData bool) {
 	if installed, _ := hooks.AntigravityIsInstalled(); installed {
 		hooks.AntigravityUninstall()
 	}
+	if installed, _ := hooks.PiIsInstalled(); installed {
+		hooks.PiUninstall()
+	}
 
 	// 2. Data
 	if !keepData {

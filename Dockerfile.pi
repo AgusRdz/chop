@@ -1,0 +1,8 @@
+FROM node:22-alpine
+
+RUN apk add --no-cache git
+RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+
+ENV PATH="/app/bin:${PATH}"
+
+WORKDIR /app

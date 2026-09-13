@@ -4,7 +4,7 @@
   <img src="logo.png?v=2" alt="chop logo" width="200" />
 </p>
 
-**CLI output compressor for Claude Code, Gemini CLI, Codex CLI, and Antigravity IDE.**
+**CLI output compressor for Claude Code, Gemini CLI, Codex CLI, Antigravity IDE, and Pi.**
 
 Claude Code and other AI agents waste 50-90% of their context window on verbose CLI output —
 build logs, test results, container listings, git diffs. **chop** compresses
@@ -266,6 +266,14 @@ chop init --codex --status     # check if installed
 chop init --antigravity              # install hook
 chop init --antigravity --uninstall  # remove hook
 chop init --antigravity --status     # check if installed
+```
+
+### Pi
+
+```bash
+chop init --pi              # install extension (~/.pi/agent/extensions/chop.ts)
+chop init --pi --uninstall  # remove extension
+chop init --pi --status     # check if installed
 ```
 
 ### AI Agent Discovery

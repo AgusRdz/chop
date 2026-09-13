@@ -87,6 +87,8 @@ func main() {
 				hooks.RunGeminiHook()
 			case "--codex":
 				hooks.RunCodexHook()
+			case "--pi":
+				hooks.RunPiHook()
 			case "--antigravity":
 				hooks.RunAntigravityHook()
 			default:
@@ -163,7 +165,7 @@ func main() {
 		return
 	case "init", "setup":
 		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: chop init <--global|--gemini|--codex|--antigravity|--uninstall|--status|--agent-handshake>")
+			fmt.Fprintln(os.Stderr, "usage: chop init <--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status|--agent-handshake>")
 			os.Exit(1)
 		}
 		switch os.Args[2] {
@@ -219,6 +221,26 @@ func main() {
 			} else {
 				hooks.CodexInstall(version)
 			}
+		case "--pi":
+			if len(os.Args) > 3 {
+				switch os.Args[3] {
+				case "--uninstall":
+					hooks.PiUninstall()
+				case "--status":
+					installed, path := hooks.PiIsInstalled()
+					if installed {
+						fmt.Printf("chop Pi hook is installed (%s)\n", path)
+					} else {
+						fmt.Printf("chop Pi hook is NOT installed\n")
+						fmt.Println("run 'chop init --pi' to install")
+					}
+				default:
+					fmt.Fprintf(os.Stderr, "unknown flag %q\nusage: chop init --pi [--uninstall|--status]\n", os.Args[3])
+					os.Exit(1)
+				}
+			} else {
+				hooks.PiInstall(version)
+			}
 		case "--antigravity":
 			if len(os.Args) > 3 {
 				switch os.Args[3] {
@@ -257,12 +279,16 @@ func main() {
 			if cInstalled {
 				fmt.Printf("chop Codex CLI hook is installed (%s)\n", cPath)
 			}
+			piInstalled, piPath := hooks.PiIsInstalled()
+			if piInstalled {
+				fmt.Printf("chop Pi hook is installed (%s)\n", piPath)
+			}
 			aInstalled, aPath := hooks.AntigravityIsInstalled()
 			if aInstalled {
 				fmt.Printf("chop Antigravity IDE hook is installed (%s)\n", aPath)
 			}
 		default:
-			fmt.Fprintf(os.Stderr, "unknown flag %q\nusage: chop init <--global|--gemini|--codex|--antigravity|--uninstall|--status>\n", os.Args[2])
+			fmt.Fprintf(os.Stderr, "unknown flag %q\nusage: chop init <--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status>\n", os.Args[2])
 			os.Exit(1)
 		}
 		return
@@ -1991,6 +2017,10 @@ func runAgentInfo() {
 	cxInstalled, cxPath := hooks.CodexIsInstalled()
 	hooksList = append(hooksList, hookInfo{Name: "codex", Installed: cxInstalled, Path: cxPath})
 
+	// Pi
+	piInstalled, piPath := hooks.PiIsInstalled()
+	hooksList = append(hooksList, hookInfo{Name: "pi", Installed: piInstalled, Path: piPath})
+
 	// Antigravity
 	aInstalled, aPath := hooks.AntigravityIsInstalled()
 	hooksList = append(hooksList, hookInfo{Name: "antigravity", Installed: aInstalled, Path: aPath})
@@ -2388,7 +2418,7 @@ _chop_completion() {
                 COMPREPLY=($(compgen -W "add remove" -- "$cur"))
             fi ;;
         init|setup)
-            COMPREPLY=($(compgen -W "--global --gemini --codex --antigravity --uninstall --status" -- "$cur")) ;;
+            COMPREPLY=($(compgen -W "--global --gemini --codex --pi --antigravity --uninstall --status" -- "$cur")) ;;
         completion)
             COMPREPLY=($(compgen -W "bash zsh fish powershell" -- "$cur")) ;;
         diff)
@@ -2450,7 +2480,7 @@ _chop() {
                 global)
                     [[ ${#words} -eq 3 ]] && _values 'subcommand' 'add' 'remove' ;;
                 init|setup)
-                    _values 'option' '--global' '--gemini' '--codex' '--antigravity' '--uninstall' '--status' ;;
+                    _values 'option' '--global' '--gemini' '--codex' '--pi' '--antigravity' '--uninstall' '--status' ;;
                 completion)
                     _values 'shell' 'bash' 'zsh' 'fish' 'powershell' ;;
                 diff)
@@ -2514,7 +2544,7 @@ complete -c chop -n "__fish_seen_subcommand_from global; and not __fish_seen_sub
 
 # init flags
 complete -c chop -n "__fish_seen_subcommand_from init setup" \
-    -a "--global --gemini --codex --antigravity --uninstall --status"
+    -a "--global --gemini --codex --pi --antigravity --uninstall --status"
 
 # completion shells
 complete -c chop -n "__fish_seen_subcommand_from completion" -a "bash zsh fish powershell"
@@ -2578,7 +2608,7 @@ Register-ArgumentCompleter -Native -CommandName chop -ScriptBlock {
         'global' {
             if ($words.Count -eq 3) { & $complete @('add','remove') }
         }
-        'init','setup' { & $complete @('--global','--gemini','--codex','--antigravity','--uninstall','--status') }
+        'init','setup' { & $complete @('--global','--gemini','--codex','--pi','--antigravity','--uninstall','--status') }
         'completion' { & $complete @('bash','zsh','fish','powershell') }
         'diff' { & $complete @('--stdin') }
         'uninstall' { & $complete @('--keep-data') }
@@ -2720,6 +2750,7 @@ func printHelp() {
 	b.WriteString(row("init "+flag("--global"), "Install Claude Code hook (~/.claude/settings.json)"))
 	b.WriteString(row("init "+flag("--gemini"), "Install Gemini CLI hook (~/.gemini/settings.json)"))
 	b.WriteString(row("init "+flag("--codex"), "Install Codex CLI hook (~/.codex/settings.json)"))
+	b.WriteString(row("init "+flag("--pi"), "Install Pi extension (~/.pi/agent/extensions/chop.ts)"))
 	b.WriteString(row("init "+flag("--antigravity"), "Install Antigravity IDE hook"))
 	b.WriteString(row("init --<platform> "+flag("--uninstall"), "Remove a platform hook"))
 	b.WriteString(row("init --<platform> "+flag("--status"), "Check a platform hook status"))

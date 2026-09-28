@@ -1,0 +1,49 @@
+{
+  "RT_MANIFEST": {
+    "#1": {
+      "0409": {
+        "identity": {
+          "name": "chop",
+          "version": ""
+        },
+        "description": "CLI output compressor for AI coding agents",
+        "minimum-os": "win7",
+        "execution-level": "as invoker",
+        "ui-access": false,
+        "auto-elevate": false,
+        "dpi-awareness": "system",
+        "disable-theming": false,
+        "disable-window-filtering": false,
+        "high-resolution-scrolling-aware": false,
+        "ultra-high-resolution-scrolling-aware": false,
+        "long-path-aware": true,
+        "printer-driver-isolation": false,
+        "gdi-scaling": false,
+        "segment-heap": false,
+        "use-common-controls-v6": false
+      }
+    }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0000": {
+        "fixed": {
+          "file_version": "0.0.0.0",
+          "product_version": "0.0.0.0"
+        },
+        "info": {
+          "0409": {
+            "CompanyName": "AgusRdz",
+            "FileDescription": "chop - CLI output compressor for AI coding agents",
+            "FileVersion": "",
+            "InternalName": "chop",
+            "LegalCopyright": "Copyright (c) 2026 AgusRdz. MIT License.",
+            "OriginalFilename": "chop.exe",
+            "ProductName": "chop",
+            "ProductVersion": ""
+          }
+        }
+      }
+    }
+  }
+}

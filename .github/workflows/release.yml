@@ -10,6 +10,7 @@ permissions:
   contents: write
   id-token: write
   attestations: write
+  actions: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -17,6 +18,8 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      SIGNPATH_ENABLED: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
         with:
@@ -53,6 +56,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate Windows resources
+        run: |
+          VER=${GITHUB_REF_NAME#v}
+          go run github.com/tc-hib/go-winres@v0.3.3 make --arch amd64 --product-version "${VER}.0" --file-version "${VER}.0"
+
       - name: Build binaries
         run: |
           VERSION=${{ github.ref_name }}
@@ -62,6 +70,42 @@ jobs:
           CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o bin/chop-darwin-amd64 .
           CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o bin/chop-darwin-arm64 .
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o bin/chop-windows-amd64.exe .
+
+      - name: Upload unsigned Windows binary
+        id: unsigned-windows
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: chop-windows-unsigned
+          path: bin/chop-windows-amd64.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign Windows binary (SignPath)
+        if: env.SIGNPATH_ENABLED == 'true'
+        uses: signpath/github-action-submit-signing-request@c92b958760219087e01f8d67a1669ed57afe2627  # v2
+        with:
+          connector-url: https://githubactions.connectors.signpath.io
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: chop
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.unsigned-windows.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: bin/signed
+
+      - name: Replace Windows binary with signed build
+        if: env.SIGNPATH_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          [ -f bin/signed/chop-windows-amd64.exe ] || { echo "ERROR: signed binary not found at bin/signed/chop-windows-amd64.exe"; exit 1; }
+          mv -f bin/signed/chop-windows-amd64.exe bin/chop-windows-amd64.exe
+          rm -rf bin/signed
+
+      - name: Warn if unsigned
+        if: env.SIGNPATH_ENABLED != 'true'
+        run: echo "::warning::SIGNPATH_API_TOKEN not set — Windows binary is NOT Authenticode-signed"
 
       - name: Generate checksums
         run: cd bin && sha256sum chop-* > checksums.txt

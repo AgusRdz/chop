@@ -20,3 +20,4 @@ chop
 
 # local dev artifacts
 *.out
+*.syso

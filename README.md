@@ -213,6 +213,21 @@ gh attestation verify chop-darwin-arm64 --repo AgusRdz/chop
 > ```
 > Installing via Homebrew avoids this entirely.
 
+### Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+
+The Windows binary (`chop-windows-amd64.exe`) is Authenticode-signed. Signing happens only in the
+GitHub Actions release workflow, from a tagged commit of this repository, and every signing request
+is manually approved.
+
+- Committers and reviewers: [Contributors](https://github.com/AgusRdz/chop/graphs/contributors)
+- Approvers: [AgusRdz](https://github.com/AgusRdz)
+
+**Privacy:** chop does not collect or transmit user data. Command output and token statistics stay
+on the local machine. The only network access is a version check against the GitHub Releases API at
+most once every 24 hours, and downloading the new release when auto-update is enabled.
+
 ---
 
 ## Quick Start

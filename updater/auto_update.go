@@ -147,7 +147,7 @@ func ApplyPendingUpdate(currentVersion string) {
 
 // CleanupOldBinary removes the ".old" copy left behind by a previous Windows update.
 // The rename-aside in replaceBinary can't delete it while the old process is running,
-// so the next invocation does it. Silent on all errors.
+// so the next doctor or gain run does it. Silent on all errors.
 func CleanupOldBinary() {
 	exe, err := os.Executable()
 	if err != nil {

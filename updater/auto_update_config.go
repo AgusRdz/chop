@@ -74,7 +74,7 @@ func AvailableUpdate(currentVersion string) (string, bool) {
 }
 
 // NotifyIfUpdateAvailable prints a hint to stderr if a newer version is known.
-// Called at startup when auto-update is off. Silent on all errors.
+// Called from gain when auto-update is off. Silent on all errors.
 func NotifyIfUpdateAvailable(currentVersion string) {
 	if IsAutoUpdateEnabled() {
 		return

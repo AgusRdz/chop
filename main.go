@@ -30,15 +30,6 @@ var changelog string
 var version = "dev"
 
 func main() {
-	// Skip update machinery entirely on the hook subcommand: it fires on every Bash call
-	// and must be fast and side-effect-free. Apply/notify only on management paths.
-	isHookPath := len(os.Args) >= 2 && os.Args[1] == "hook"
-	if !isHookPath {
-		updater.ApplyPendingUpdate(version)
-		updater.CleanupOldBinary()
-		updater.NotifyIfUpdateAvailable(version)
-	}
-
 	if len(os.Args) < 2 {
 		printHelp()
 		os.Exit(1)
@@ -765,8 +756,18 @@ func configSet(key, value string) {
 	fmt.Printf("%s: %s\n", key, value)
 }
 
-func runGain(args []string) {
+// runUpdateHousekeeping applies a staged update, clears the Windows .old leftover and
+// runs the throttled version check. Called only from doctor and gain so wrapped
+// commands and the hook never touch the network or replace the binary.
+func runUpdateHousekeeping() {
+	updater.ApplyPendingUpdate(version)
+	updater.CleanupOldBinary()
 	updater.CheckForUpdate(version)
+}
+
+func runGain(args []string) {
+	runUpdateHousekeeping()
+	updater.NotifyIfUpdateAvailable(version)
 	var showHistory, showSummary, showUnchopped, verbose, showAll, showProjects bool
 	var skipCmd, unskipCmd, deleteCmd, noTrackCmd, resumeTrackCmd, exportFormat, sinceStr, projectFilter string
 	historyLimit := 20
@@ -2114,7 +2115,7 @@ func checkInstallDir() {
 func runDoctor() {
 	issues := 0
 
-	updater.CheckForUpdate(version)
+	runUpdateHousekeeping()
 
 	// 1. Check if hook is installed
 	installed, _ := hooks.IsInstalled()

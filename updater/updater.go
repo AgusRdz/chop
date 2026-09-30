@@ -390,7 +390,6 @@ func replaceBinary(destPath, srcPath string) error {
 			os.Rename(oldPath, destPath) // restore
 			return err
 		}
-		os.Remove(oldPath)
 		return nil
 	}
 

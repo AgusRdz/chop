@@ -58,7 +58,7 @@ jobs:
 
       - name: Generate Windows resources
         run: |
-          VER=${GITHUB_REF_NAME#v}
+          VER=${GITHUB_REF_NAME#v}; VER=${VER%%-*}
           go run github.com/tc-hib/go-winres@v0.3.3 make --arch amd64 --product-version "${VER}.0" --file-version "${VER}.0"
 
       - name: Build binaries

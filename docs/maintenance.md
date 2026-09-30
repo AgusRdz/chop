@@ -35,7 +35,7 @@ chop auto-update on      # download updates found by the check (applies on next 
 chop auto-update off     # disable auto-updates (you'll get a notification instead)
 ```
 
-The version check runs only during `chop doctor` and `chop gain`, at most once per 24 hours, with a 3-second lookup timeout. It never runs from wrapped commands or the hook, and chop never spawns a background process for it. With auto-update on, a download prints `chop: downloading update <old> -> <new>...` to stderr and is applied on the next run.
+The version check runs only during `chop doctor` and `chop gain`, at most once per 24 hours, with a 3-second lookup timeout. It never runs from wrapped commands or the hook, and chop never spawns a background process for it. With auto-update on, a download prints `chop: downloading update <old> -> <new>...` to stderr and is applied on the next `chop doctor` or `chop gain` run.
 
 ## Enable / Disable
 

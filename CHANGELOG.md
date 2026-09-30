@@ -2,6 +2,23 @@
 
 All notable changes to chop are documented here.
 
+## [1.39.2] - 2026-09-30
+
+### Bug Fixes
+- Avoid '<--' in init usage, which renders as an arrow in ligature fonts
+([7f0313c](https://github.com/AgusRdz/chop/commit/7f0313c1d692d8b33aaef6ca566fa353cb4414aa))
+- Only report conflicts from enabled plugins
+([4d8fbd8](https://github.com/AgusRdz/chop/commit/4d8fbd853dc313ce044f771fd4f1fcdc2a8a0678))
+- Consistent advice for plugin hook conflicts
+([3d286e9](https://github.com/AgusRdz/chop/commit/3d286e9ab64fdd559990c86c7f783ab435ad71e8))
+- Plain install confirmation message
+([af9d543](https://github.com/AgusRdz/chop/commit/af9d543b7d8dc46970b4a1e0575a592a5a6a1b71))
+- Plain install confirmation in install scripts
+([2936bcf](https://github.com/AgusRdz/chop/commit/2936bcf58fad16ad6daa6f2231ad1fc021debb2f))
+
+### Other
+- Merge pull request #68 from AgusRdz/fix/init-and-hook-conflicts
+([d832b56](https://github.com/AgusRdz/chop/commit/d832b56eb87769087f486439cc8b0511f08fc389))
 ## [1.39.1] - 2026-09-30
 
 ### Bug Fixes

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -465,5 +466,77 @@ func TestAuditLogAppendsMultipleEntries(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) != 3 {
 		t.Errorf("expected 3 lines, got %d", len(lines))
+	}
+}
+
+func TestFormatAuditEntryEscapesLineBreaks(t *testing.T) {
+	got := formatAuditEntry("2026-01-02 03:04:05", "cat <<EOF\r\nline\nmore\rx\nEOF", "chop cat <<EOF\nEOF")
+	want := `2026-01-02 03:04:05  rewrite  cat <<EOF\nline\nmore\rx\nEOF -> chop cat <<EOF\nEOF`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	if strings.ContainsAny(got, "\r\n") {
+		t.Errorf("entry must be a single line, got %q", got)
+	}
+}
+
+func TestRecentAuditEntriesLegacyMultiline(t *testing.T) {
+	log := "2026-01-01 10:00:00  rewrite  git status -> chop git status\n" +
+		"2026-01-01 10:00:01  rewrite  cat <<EOF\nhello\n\nEOF -> chop cat <<EOF\nhello\n\nEOF\n" +
+		"2026-01-01 10:00:02  rewrite  go test -> chop go test\n"
+	got, err := RecentAuditEntries(strings.NewReader(log), 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"2026-01-01 10:00:00  rewrite  git status -> chop git status",
+		`2026-01-01 10:00:01  rewrite  cat <<EOF\nhello\n\nEOF -> chop cat <<EOF\nhello\n\nEOF`,
+		"2026-01-01 10:00:02  rewrite  go test -> chop go test",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestRecentAuditEntriesLastN(t *testing.T) {
+	var b strings.Builder
+	for i := 0; i < 25; i++ {
+		fmt.Fprintf(&b, "2026-01-01 10:00:%02d  rewrite  cmd%d -> chop cmd%d\n", i, i, i)
+		if i == 24 {
+			b.WriteString("continued\n")
+		}
+	}
+	got, err := RecentAuditEntries(strings.NewReader(b.String()), 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 20 {
+		t.Fatalf("expected 20 entries, got %d", len(got))
+	}
+	if !strings.Contains(got[0], "cmd5 ->") {
+		t.Errorf("first entry should be cmd5, got %q", got[0])
+	}
+	if !strings.HasSuffix(got[19], `chop cmd24\ncontinued`) {
+		t.Errorf("last entry should include its continuation, got %q", got[19])
+	}
+}
+
+func TestRecentAuditEntriesLeadingContinuation(t *testing.T) {
+	log := "orphan fragment\nmore\n2026-01-01 10:00:00  rewrite  a -> chop a\n"
+	got, err := RecentAuditEntries(strings.NewReader(log), 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The orphan line becomes its own entry; later orphan lines attach to it.
+	want := []string{`orphan fragment\nmore`, "2026-01-01 10:00:00  rewrite  a -> chop a"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestRecentAuditEntriesEmpty(t *testing.T) {
+	got, err := RecentAuditEntries(strings.NewReader(""), 20)
+	if err != nil || len(got) != 0 {
+		t.Errorf("got %q, %v; want no entries", got, err)
 	}
 }

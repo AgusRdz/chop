@@ -1,11 +1,13 @@
 package hooks
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -512,7 +514,47 @@ func auditLog(original, rewritten string) {
 	}
 	defer f.Close()
 	ts := time.Now().Format("2006-01-02 15:04:05")
-	fmt.Fprintf(f, "%s  rewrite  %s -> %s\n", ts, original, rewritten)
+	fmt.Fprintln(f, formatAuditEntry(ts, original, rewritten))
+}
+
+var auditLineBreaks = strings.NewReplacer("\r\n", `\n`, "\n", `\n`, "\r", `\r`)
+
+// formatAuditEntry renders one audit entry on a single line; multi-line
+// commands (heredocs) have their line breaks escaped so entries stay countable.
+func formatAuditEntry(ts, original, rewritten string) string {
+	return fmt.Sprintf("%s  rewrite  %s -> %s", ts, auditLineBreaks.Replace(original), auditLineBreaks.Replace(rewritten))
+}
+
+var auditTimestampRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}  `)
+
+// RecentAuditEntries returns the last n entries of an audit log. A line that
+// starts with a timestamp begins a new entry; any other line continues the
+// previous one (logs written before line breaks were escaped) and is joined
+// with a literal `\n`. A leading continuation line with no entry before it
+// becomes an entry of its own.
+func RecentAuditEntries(r io.Reader, n int) ([]string, error) {
+	br := bufio.NewReader(r)
+	var entries []string
+	for {
+		line, err := br.ReadString('\n')
+		if line != "" {
+			line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
+			if auditTimestampRe.MatchString(line) || len(entries) == 0 {
+				entries = append(entries, line)
+				if len(entries) > n {
+					entries = append(entries[:0], entries[1:]...)
+				}
+			} else {
+				entries[len(entries)-1] += `\n` + line
+			}
+		}
+		if err == io.EOF {
+			return entries, nil
+		}
+		if err != nil {
+			return entries, err
+		}
+	}
 }
 
 // AuditLogPath returns the path to the hook audit log file.

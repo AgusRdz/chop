@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -1096,24 +1095,19 @@ func runHookAudit(args []string) {
 	}
 	defer f.Close()
 
-	// Read all lines, keep last 20
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+	entries, err := hooks.RecentAuditEntries(f, 20)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to read audit log: %v\n", err)
+		os.Exit(1)
 	}
 
-	if len(lines) == 0 {
+	if len(entries) == 0 {
 		fmt.Println("no hook audit log entries")
 		return
 	}
 
-	start := 0
-	if len(lines) > 20 {
-		start = len(lines) - 20
-	}
-	for _, line := range lines[start:] {
-		fmt.Println(line)
+	for _, entry := range entries {
+		fmt.Println(entry)
 	}
 }
 
@@ -2148,31 +2142,13 @@ func runDoctor() {
 	// 3. Check for competing Bash PreToolUse hooks (Claude Code bug #15897)
 	conflicts, err := hooks.FindConflictingBashHooks()
 	if err == nil && conflicts.HasConflict() {
-		fmt.Println("[!] competing Bash PreToolUse hooks detected — chop compression may be disabled")
-		fmt.Println("    cause: https://github.com/anthropics/claude-code/issues/15897")
-		fmt.Println("    when multiple Bash PreToolUse hooks are active, Claude Code may drop updatedInput from all of them (reported fixed in 2.1.168; run `claude update`)")
-		if len(conflicts.SettingsConflicts) > 0 {
-			fmt.Println("    competing hooks in ~/.claude/settings.json:")
-			for _, cmd := range conflicts.SettingsConflicts {
-				fmt.Printf("      - %s\n", cmd)
-			}
+		if ver, fixed := hooks.ConflictBugFixed(); fixed {
+			fmt.Printf("[ok] other Bash PreToolUse hooks present (%d); fine on Claude Code %s\n",
+				len(conflicts.SettingsConflicts)+len(conflicts.PluginConflicts), ver)
+		} else {
+			printDoctorConflicts(conflicts)
+			issues++
 		}
-		if len(conflicts.PluginConflicts) > 0 {
-			fmt.Println("    competing hooks from plugins:")
-			for _, path := range conflicts.PluginConflicts {
-				fmt.Printf("      - %s\n", path)
-			}
-		}
-		switch {
-		case len(conflicts.PluginConflicts) == 0:
-			fmt.Println("    fix: run `chop fix-hooks` to generate a combined wrapper script automatically")
-		case len(conflicts.SettingsConflicts) == 0:
-			fmt.Println("    fix: plugin hooks can't be merged automatically; run `chop fix-hooks` for options")
-			fmt.Println("    note: " + hooks.PluginHookNote)
-		default:
-			fmt.Println("    fix: `chop fix-hooks` can wrap the settings.json hooks; plugin hooks need manual handling (run it for options)")
-		}
-		issues++
 	} else if err == nil {
 		fmt.Println("[ok] no competing Bash PreToolUse hooks")
 	}
@@ -2251,6 +2227,33 @@ func runDoctor() {
 	}
 }
 
+func printDoctorConflicts(conflicts hooks.ConflictingBashHooks) {
+	fmt.Println("[!] competing Bash PreToolUse hooks detected — chop compression may be disabled")
+	fmt.Println("    cause: https://github.com/anthropics/claude-code/issues/15897")
+	fmt.Println("    when multiple Bash PreToolUse hooks are active, Claude Code may drop updatedInput from all of them (reported fixed in 2.1.168; run `claude update`)")
+	if len(conflicts.SettingsConflicts) > 0 {
+		fmt.Println("    competing hooks in ~/.claude/settings.json:")
+		for _, cmd := range conflicts.SettingsConflicts {
+			fmt.Printf("      - %s\n", cmd)
+		}
+	}
+	if len(conflicts.PluginConflicts) > 0 {
+		fmt.Println("    competing hooks from plugins:")
+		for _, path := range conflicts.PluginConflicts {
+			fmt.Printf("      - %s\n", path)
+		}
+	}
+	switch {
+	case len(conflicts.PluginConflicts) == 0:
+		fmt.Println("    fix: run `chop fix-hooks` to generate a combined wrapper script automatically")
+	case len(conflicts.SettingsConflicts) == 0:
+		fmt.Println("    fix: plugin hooks can't be merged automatically; run `chop fix-hooks` for options")
+		fmt.Println("    note: " + hooks.PluginHookNote)
+	default:
+		fmt.Println("    fix: `chop fix-hooks` can wrap the settings.json hooks; plugin hooks need manual handling (run it for options)")
+	}
+}
+
 func runFixHooks() {
 	conflicts, err := hooks.FindConflictingBashHooks()
 	if err != nil {
@@ -2260,6 +2263,11 @@ func runFixHooks() {
 
 	if !conflicts.HasConflict() {
 		fmt.Println("no hook conflicts detected — nothing to fix")
+		return
+	}
+
+	if ver, fixed := hooks.ConflictBugFixed(); fixed {
+		fmt.Printf("Other Bash PreToolUse hooks are present, but Claude Code %s is not affected by issue #15897 (fixed in 2.1.168). Nothing to fix.\n", ver)
 		return
 	}
 

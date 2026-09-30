@@ -508,6 +508,110 @@ func TestFindConflictingBashHooks_PluginConflict(t *testing.T) {
 	}
 }
 
+// setupRegistry writes installed_plugins.json (one entry per installPath, keyed by
+// plugin name) and an enabledPlugins map into a temp home's ~/.claude.
+func setupRegistry(t *testing.T, home string, registry map[string][]string, enabled map[string]bool) {
+	t.Helper()
+	plugins := map[string]interface{}{}
+	for name, paths := range registry {
+		var entries []interface{}
+		for _, p := range paths {
+			entries = append(entries, map[string]interface{}{"scope": "user", "installPath": p})
+		}
+		plugins[name] = entries
+	}
+	writeJSON(t, filepath.Join(home, ".claude", "plugins", "installed_plugins.json"),
+		map[string]interface{}{"version": 2, "plugins": plugins})
+	writeJSON(t, filepath.Join(home, ".claude", "settings.json"),
+		map[string]interface{}{"enabledPlugins": enabled})
+}
+
+func TestFindConflictingBashHooks_EnabledPluginConflict(t *testing.T) {
+	home := t.TempDir()
+	installDir := filepath.Join(home, ".claude", "plugins", "cache", "mkt", "plug", "1.0.0")
+	writePluginHooksJSON(t, filepath.Join(installDir, "hooks", "hooks.json"), "/path/to/hook.sh")
+	setupRegistry(t, home, map[string][]string{"plug@mkt": {installDir}}, map[string]bool{"plug@mkt": true})
+
+	conflicts, err := findConflictingBashHooksIn(home)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(conflicts.PluginConflicts) != 1 {
+		t.Fatalf("expected 1 plugin conflict, got %v", conflicts.PluginConflicts)
+	}
+}
+
+func TestFindConflictingBashHooks_DisabledOrUnlistedPluginIgnored(t *testing.T) {
+	for name, enabled := range map[string]map[string]bool{
+		"disabled": {"plug@mkt": false},
+		"absent":   {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			home := t.TempDir()
+			installDir := filepath.Join(home, ".claude", "plugins", "cache", "mkt", "plug", "1.0.0")
+			writePluginHooksJSON(t, filepath.Join(installDir, "hooks", "hooks.json"), "/path/to/hook.sh")
+			setupRegistry(t, home, map[string][]string{"plug@mkt": {installDir}}, enabled)
+
+			conflicts, err := findConflictingBashHooksIn(home)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(conflicts.PluginConflicts) != 0 {
+				t.Errorf("expected no plugin conflicts, got %v", conflicts.PluginConflicts)
+			}
+		})
+	}
+}
+
+func TestFindConflictingBashHooks_StaleSiblingsIgnoredWithRegistry(t *testing.T) {
+	home := t.TempDir()
+	pluginsDir := filepath.Join(home, ".claude", "plugins")
+	active := filepath.Join(pluginsDir, "cache", "mkt", "plug", "2.0.0")
+	writePluginHooksJSON(t, filepath.Join(active, "hooks", "hooks.json"), "/path/to/hook.sh")
+	writePluginHooksJSON(t, filepath.Join(pluginsDir, "cache", "mkt", "plug", "1.0.0", "hooks", "hooks.json"), "/old.sh")
+	writePluginHooksJSON(t, filepath.Join(pluginsDir, "marketplaces", "temp_x", "plugins", "plug", "hooks", "hooks.json"), "/tmp.sh")
+	setupRegistry(t, home, map[string][]string{"plug@mkt": {active}}, map[string]bool{"plug@mkt": true})
+
+	conflicts, err := findConflictingBashHooksIn(home)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := filepath.Join(active, "hooks", "hooks.json")
+	if len(conflicts.PluginConflicts) != 1 || conflicts.PluginConflicts[0] != want {
+		t.Errorf("expected only %q, got %v", want, conflicts.PluginConflicts)
+	}
+}
+
+func TestFindConflictingBashHooks_SharedInstallPathReportedOnce(t *testing.T) {
+	home := t.TempDir()
+	installDir := filepath.Join(home, ".claude", "plugins", "cache", "mkt", "plug", "1.0.0")
+	writePluginHooksJSON(t, filepath.Join(installDir, "hooks", "hooks.json"), "/path/to/hook.sh")
+	setupRegistry(t, home, map[string][]string{"plug@mkt": {installDir, installDir}}, map[string]bool{"plug@mkt": true})
+
+	conflicts, err := findConflictingBashHooksIn(home)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(conflicts.PluginConflicts) != 1 {
+		t.Errorf("expected 1 plugin conflict, got %v", conflicts.PluginConflicts)
+	}
+}
+
+func TestFindConflictingBashHooks_NoRegistryFallsBackToWalk(t *testing.T) {
+	home := t.TempDir()
+	writeJSON(t, filepath.Join(home, ".claude", "settings.json"),
+		map[string]interface{}{"enabledPlugins": map[string]bool{"plug@mkt": false}})
+	writePluginHooksJSON(t, filepath.Join(home, ".claude", "plugins", "cache", "mkt", "plug", "1.0.0", "hooks", "hooks.json"), "/path/to/hook.sh")
+
+	conflicts, err := findConflictingBashHooksIn(home)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(conflicts.PluginConflicts) != 1 {
+		t.Errorf("expected fallback walk to find 1 conflict, got %v", conflicts.PluginConflicts)
+	}
+}
+
 func TestFindConflictingBashHooks_EmptyPluginPreToolUse(t *testing.T) {
 	home := t.TempDir()
 	settingsPath := filepath.Join(home, ".claude", "settings.json")

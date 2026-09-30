@@ -322,7 +322,7 @@ Two commands support agent-first workflows:
 
 ```bash
 chop agent-info               # output JSON metadata (path, version, installed hooks)
-chop init --agent-handshake   # print a high-signal discovery message agents recognize
+chop init --agent-handshake   # print the resolved install path
 ```
 
 `setup` is also available as an alias for `init`, useful when working with Gemini CLI where `/init` conflicts with a built-in command:

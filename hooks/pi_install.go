@@ -49,7 +49,7 @@ func PiInstall(version string) {
 
 	_ = config.WriteDiscoveryInfo(version)
 	fmt.Printf("chop hook installed in %s\n", extPath)
-	fmt.Printf("\nInstallation complete! Please tell Pi: 'Remember that chop is installed at %s and use it for CLI compression.' This will prevent the agent from searching for it in the future.\n", binPath)
+	fmt.Printf("\nInstallation complete. chop is installed at %s\n", binPath)
 }
 
 // PiUninstall removes the chop extension file, if chop generated it.

@@ -6,10 +6,15 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/AgusRdz/chop/config"
 )
+
+// PluginHookNote is shown whenever plugin-only conflicts are reported: a plugin hook
+// that emits no output does not override chop's rewritten command.
+const PluginHookNote = "a plugin hook that prints nothing may not affect chop; if wrapped commands still show compressed output in Claude Code, no action is needed"
 
 // chopBinaryName is used to identify direct chop hook entries in settings.json.
 const chopBinaryName = "chop"
@@ -87,11 +92,19 @@ func Install(version string) {
 				fmt.Printf("  - %s\n", path)
 			}
 		}
-		fmt.Println("Run `chop fix-hooks` to generate a combined wrapper script automatically.")
+		switch {
+		case len(conflicts.PluginConflicts) == 0:
+			fmt.Println("Run `chop fix-hooks` to generate a combined wrapper script automatically.")
+		case len(conflicts.SettingsConflicts) == 0:
+			fmt.Println("Plugin hooks can't be merged automatically; run `chop fix-hooks` for options.")
+			fmt.Println("Note: " + PluginHookNote)
+		default:
+			fmt.Println("`chop fix-hooks` can wrap the settings.json hooks; plugin hooks need manual handling (run it for options).")
+		}
 	}
 
 	binPath, _ := chopBinaryPath()
-	fmt.Printf("\nInstallation complete! Please tell your Claude Code: 'Remember that chop is installed at %s and use it for CLI compression.' This will prevent the agent from searching for it in the future.\n", binPath)
+	fmt.Printf("\nInstallation complete. chop is installed at %s\n", binPath)
 }
 
 // Uninstall removes the chop hook from ~/.claude/settings.json.
@@ -434,51 +447,102 @@ func findConflictingBashHooksIn(home string) (ConflictingBashHooks, error) {
 
 	// --- scan plugin hooks.json files for Bash PreToolUse entries ---
 	pluginsDir := filepath.Join(home, ".claude", "plugins")
-	if _, err := os.Stat(pluginsDir); err == nil {
-		_ = filepath.WalkDir(pluginsDir, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
-				return nil
+	if activeDirs, ok := activePluginInstallPaths(pluginsDir, settings); ok {
+		// Claude Code's registry is authoritative: stale cache versions and marketplace
+		// checkouts are never loaded, so only enabled plugins' install dirs can conflict.
+		seen := map[string]bool{}
+		for _, dir := range activeDirs {
+			path := filepath.Join(dir, "hooks", "hooks.json")
+			if seen[path] {
+				continue
 			}
-			// Only care about hooks/hooks.json files inside the plugins tree
-			if d.Name() != "hooks.json" {
+			seen[path] = true
+			if pluginHooksFileHasBashHook(path) {
+				result.PluginConflicts = append(result.PluginConflicts, path)
+			}
+		}
+	} else if _, err := os.Stat(pluginsDir); err == nil {
+		// Older Claude Code layouts have no registry: fall back to scanning the whole tree.
+		_ = filepath.WalkDir(pluginsDir, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || d.Name() != "hooks.json" {
 				return nil
 			}
 			if filepath.Base(filepath.Dir(path)) != "hooks" {
 				return nil
 			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return nil
-			}
-			var pluginHooks struct {
-				Hooks struct {
-					PreToolUse []struct {
-						Matcher string `json:"matcher"`
-						Hooks   []struct {
-							Command string `json:"command"`
-						} `json:"hooks"`
-					} `json:"PreToolUse"`
-				} `json:"hooks"`
-			}
-			if json.Unmarshal(data, &pluginHooks) != nil {
-				return nil
-			}
-			for _, entry := range pluginHooks.Hooks.PreToolUse {
-				if entry.Matcher != "Bash" {
-					continue
-				}
-				for _, h := range entry.Hooks {
-					if h.Command != "" {
-						result.PluginConflicts = append(result.PluginConflicts, path)
-						return nil // one report per file is enough
-					}
-				}
+			if pluginHooksFileHasBashHook(path) {
+				result.PluginConflicts = append(result.PluginConflicts, path)
 			}
 			return nil
 		})
 	}
 
 	return result, nil
+}
+
+// activePluginInstallPaths returns the install dirs of enabled plugins, read from
+// plugins/installed_plugins.json and the enabledPlugins map in settings. The bool is
+// false when the registry is missing or unparseable.
+func activePluginInstallPaths(pluginsDir string, settings map[string]interface{}) ([]string, bool) {
+	data, err := os.ReadFile(filepath.Join(pluginsDir, "installed_plugins.json"))
+	if err != nil {
+		return nil, false
+	}
+	var registry struct {
+		Plugins map[string][]struct {
+			InstallPath string `json:"installPath"`
+		} `json:"plugins"`
+	}
+	if json.Unmarshal(data, &registry) != nil || registry.Plugins == nil {
+		return nil, false
+	}
+	enabled, _ := settings["enabledPlugins"].(map[string]interface{})
+	var dirs []string
+	for name, installs := range registry.Plugins {
+		if on, _ := enabled[name].(bool); !on {
+			continue
+		}
+		for _, in := range installs {
+			if in.InstallPath != "" {
+				dirs = append(dirs, in.InstallPath)
+			}
+		}
+	}
+	sort.Strings(dirs)
+	return dirs, true
+}
+
+// pluginHooksFileHasBashHook reports whether a plugin hooks.json declares a Bash
+// PreToolUse hook with a non-empty command.
+func pluginHooksFileHasBashHook(path string) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var pluginHooks struct {
+		Hooks struct {
+			PreToolUse []struct {
+				Matcher string `json:"matcher"`
+				Hooks   []struct {
+					Command string `json:"command"`
+				} `json:"hooks"`
+			} `json:"PreToolUse"`
+		} `json:"hooks"`
+	}
+	if json.Unmarshal(data, &pluginHooks) != nil {
+		return false
+	}
+	for _, entry := range pluginHooks.Hooks.PreToolUse {
+		if entry.Matcher != "Bash" {
+			continue
+		}
+		for _, h := range entry.Hooks {
+			if h.Command != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // WrapperScriptPath returns the canonical path for the chop-generated wrapper script.

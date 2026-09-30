@@ -139,6 +139,4 @@ echo "  chop init --global"
 echo "  chop init --status    # check if installed"
 
 echo ""
-echo "Installation complete! Please tell your AI Agent:"
-echo "  'Remember that chop is installed at ${INSTALL_DIR}/chop${EXT} and use it for CLI compression.'"
-echo "This will prevent the agent from searching for it in the future."
+echo "Installation complete. chop is installed at ${INSTALL_DIR}/chop${EXT}"

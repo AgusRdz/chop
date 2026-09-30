@@ -152,7 +152,7 @@ func main() {
 		return
 	case "init", "setup":
 		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: chop init <--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status|--agent-handshake>")
+			fmt.Fprintln(os.Stderr, "usage: chop init {--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status|--agent-handshake}")
 			os.Exit(1)
 		}
 		switch os.Args[2] {
@@ -275,7 +275,7 @@ func main() {
 				fmt.Printf("chop Antigravity IDE hook is installed (%s)\n", aPath)
 			}
 		default:
-			fmt.Fprintf(os.Stderr, "unknown flag %q\nusage: chop init <--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status>\n", os.Args[2])
+			fmt.Fprintf(os.Stderr, "unknown flag %q\nusage: chop init {--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status|--agent-handshake}\n", os.Args[2])
 			os.Exit(1)
 		}
 		return
@@ -2163,7 +2163,15 @@ func runDoctor() {
 				fmt.Printf("      - %s\n", path)
 			}
 		}
-		fmt.Println("    fix: run `chop fix-hooks` to generate a combined wrapper script automatically")
+		switch {
+		case len(conflicts.PluginConflicts) == 0:
+			fmt.Println("    fix: run `chop fix-hooks` to generate a combined wrapper script automatically")
+		case len(conflicts.SettingsConflicts) == 0:
+			fmt.Println("    fix: plugin hooks can't be merged automatically; run `chop fix-hooks` for options")
+			fmt.Println("    note: " + hooks.PluginHookNote)
+		default:
+			fmt.Println("    fix: `chop fix-hooks` can wrap the settings.json hooks; plugin hooks need manual handling (run it for options)")
+		}
 		issues++
 	} else if err == nil {
 		fmt.Println("[ok] no competing Bash PreToolUse hooks")
@@ -2268,8 +2276,11 @@ func runFixHooks() {
 	if len(conflicts.PluginConflicts) > 0 && len(conflicts.SettingsConflicts) == 0 {
 		fmt.Println("Plugin conflicts cannot be auto-fixed — chop cannot modify plugin files.")
 		fmt.Println("Options:")
-		fmt.Println("  [1] Disable the plugin's Bash PreToolUse hook manually (set PreToolUse: [] in the plugin hooks.json)")
-		fmt.Println("  [2] Use a wrapper script: merge the plugin's hook logic into ~/.claude/hooks/chop-wrapper.sh manually")
+		fmt.Println("  [1] Disable the plugin via Claude Code's /plugin menu, or set \"enabledPlugins\": {\"<name>\": false} in ~/.claude/settings.json")
+		fmt.Println("      (editing the plugin's own files is undone when the plugin updates)")
+		fmt.Println("  [2] Manual: merge the plugin's hook logic into ~/.claude/hooks/chop-wrapper.sh yourself")
+		fmt.Println()
+		fmt.Println("Note: " + hooks.PluginHookNote)
 		return
 	}
 
@@ -2277,7 +2288,7 @@ func runFixHooks() {
 	fmt.Println("  [1] Standard — install chop directly and let you merge hooks manually")
 	fmt.Println("  [2] Wrapper  — generate ~/.claude/hooks/chop-wrapper.sh combining all hooks (recommended)")
 	if len(conflicts.PluginConflicts) > 0 {
-		fmt.Println("  Note: plugin conflicts must still be fixed manually (disable PreToolUse in plugin hooks.json)")
+		fmt.Println("  Note: plugin conflicts must still be fixed manually (disable the plugin via /plugin or \"enabledPlugins\" in ~/.claude/settings.json; editing plugin files is undone on update)")
 	}
 	fmt.Print("\nEnter choice [1/2]: ")
 

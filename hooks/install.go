@@ -74,11 +74,11 @@ func Install(version string) {
 	_ = config.WriteDiscoveryInfo(version)
 	fmt.Printf("chop hook installed in %s\n", settingsPath)
 
-	// Warn if competing Bash PreToolUse hooks exist — they will silently disable compression.
+	// Warn if competing Bash PreToolUse hooks exist — they may disable compression.
 	if conflicts, err := FindConflictingBashHooks(); err == nil && conflicts.HasConflict() {
 		fmt.Println()
 		fmt.Println("WARNING: competing Bash PreToolUse hooks detected.")
-		fmt.Println("Claude Code will silently drop chop's output due to a known bug:")
+		fmt.Println("Claude Code may drop chop's output due to a known bug, reported fixed in 2.1.168 (run `claude update`):")
 		fmt.Println("  https://github.com/anthropics/claude-code/issues/15897")
 		if len(conflicts.SettingsConflicts) > 0 {
 			fmt.Println("Conflicts in ~/.claude/settings.json:")
@@ -314,8 +314,8 @@ func isChopAwareHook(hookObj map[string]interface{}) bool {
 }
 
 // ConflictingBashHooks describes hooks that compete with chop's updatedInput output.
-// When multiple Bash PreToolUse hooks are active, Claude Code silently drops updatedInput
-// from all of them (https://github.com/anthropics/claude-code/issues/15897).
+// When multiple Bash PreToolUse hooks are active, older Claude Code versions drop updatedInput
+// from all of them (https://github.com/anthropics/claude-code/issues/15897, reported fixed in 2.1.168).
 type ConflictingBashHooks struct {
 	// SettingsConflicts are non-chop hook commands found in the Bash PreToolUse
 	// section of ~/.claude/settings.json.

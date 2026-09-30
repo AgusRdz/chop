@@ -468,7 +468,7 @@ Enable tab-completion for all chop commands and flags:
 source <(chop completion bash)        # bash — add to ~/.bashrc
 source <(chop completion zsh)         # zsh  — add to ~/.zshrc
 chop completion fish | source         # fish
-chop completion powershell | Invoke-Expression  # PowerShell
+chop completion powershell > $HOME\chop-completion.ps1  # PowerShell — then add `. $HOME\chop-completion.ps1` to $PROFILE
 ```
 
 → Setup instructions: [docs/shell-completions.md](docs/shell-completions.md)

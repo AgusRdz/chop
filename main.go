@@ -2350,7 +2350,7 @@ func runCompletion(args []string) {
 		fmt.Fprintln(os.Stderr, "  bash:        source <(chop completion bash)")
 		fmt.Fprintln(os.Stderr, "  zsh:         source <(chop completion zsh)")
 		fmt.Fprintln(os.Stderr, "  fish:        chop completion fish | source")
-		fmt.Fprintln(os.Stderr, "  powershell:  chop completion powershell | Invoke-Expression")
+		fmt.Fprintln(os.Stderr, "  powershell:  chop completion powershell > $HOME\\chop-completion.ps1, then add `. $HOME\\chop-completion.ps1` to $PROFILE")
 		os.Exit(1)
 	}
 	switch args[0] {
@@ -2551,7 +2551,8 @@ complete -c chop -n "__fish_seen_subcommand_from uninstall" -l keep-data -d "Kee
 `
 
 const completionPowerShell = `# chop PowerShell completion
-# Add to $PROFILE: chop completion powershell | Invoke-Expression
+# Save: chop completion powershell > $HOME\chop-completion.ps1
+# Then add to $PROFILE: . $HOME\chop-completion.ps1
 
 Register-ArgumentCompleter -Native -CommandName chop -ScriptBlock {
     param($wordToComplete, $commandAst, $cursorPosition)

@@ -77,29 +77,11 @@ func Install(version string) {
 	// Warn if competing Bash PreToolUse hooks exist — they may disable compression.
 	if conflicts, err := FindConflictingBashHooks(); err == nil && conflicts.HasConflict() {
 		fmt.Println()
-		fmt.Println("WARNING: competing Bash PreToolUse hooks detected.")
-		fmt.Println("Claude Code may drop chop's output due to a known bug, reported fixed in 2.1.168 (run `claude update`):")
-		fmt.Println("  https://github.com/anthropics/claude-code/issues/15897")
-		if len(conflicts.SettingsConflicts) > 0 {
-			fmt.Println("Conflicts in ~/.claude/settings.json:")
-			for _, cmd := range conflicts.SettingsConflicts {
-				fmt.Printf("  - %s\n", cmd)
-			}
-		}
-		if len(conflicts.PluginConflicts) > 0 {
-			fmt.Println("Conflicts from plugins:")
-			for _, path := range conflicts.PluginConflicts {
-				fmt.Printf("  - %s\n", path)
-			}
-		}
-		switch {
-		case len(conflicts.PluginConflicts) == 0:
-			fmt.Println("Run `chop fix-hooks` to generate a combined wrapper script automatically.")
-		case len(conflicts.SettingsConflicts) == 0:
-			fmt.Println("Plugin hooks can't be merged automatically; run `chop fix-hooks` for options.")
-			fmt.Println("Note: " + PluginHookNote)
-		default:
-			fmt.Println("`chop fix-hooks` can wrap the settings.json hooks; plugin hooks need manual handling (run it for options).")
+		if ver, fixed := ConflictBugFixed(); fixed {
+			fmt.Printf("Note: other Bash PreToolUse hooks are present (%d); that's fine on Claude Code %s (issue #15897 is fixed in 2.1.168+).\n",
+				len(conflicts.SettingsConflicts)+len(conflicts.PluginConflicts), ver)
+		} else {
+			printInstallConflictWarning(conflicts)
 		}
 	}
 
@@ -988,4 +970,33 @@ func uninstallFrom(settingsPath string) error {
 	}
 
 	return writeSettings(settingsPath, settings)
+}
+
+// printInstallConflictWarning prints the competing-hook warning shown by
+// `chop init --global` when Claude Code is old or its version is unknown.
+func printInstallConflictWarning(conflicts ConflictingBashHooks) {
+	fmt.Println("WARNING: competing Bash PreToolUse hooks detected.")
+	fmt.Println("Claude Code may drop chop's output due to a known bug, reported fixed in 2.1.168 (run `claude update`):")
+	fmt.Println("  https://github.com/anthropics/claude-code/issues/15897")
+	if len(conflicts.SettingsConflicts) > 0 {
+		fmt.Println("Conflicts in ~/.claude/settings.json:")
+		for _, cmd := range conflicts.SettingsConflicts {
+			fmt.Printf("  - %s\n", cmd)
+		}
+	}
+	if len(conflicts.PluginConflicts) > 0 {
+		fmt.Println("Conflicts from plugins:")
+		for _, path := range conflicts.PluginConflicts {
+			fmt.Printf("  - %s\n", path)
+		}
+	}
+	switch {
+	case len(conflicts.PluginConflicts) == 0:
+		fmt.Println("Run `chop fix-hooks` to generate a combined wrapper script automatically.")
+	case len(conflicts.SettingsConflicts) == 0:
+		fmt.Println("Plugin hooks can't be merged automatically; run `chop fix-hooks` for options.")
+		fmt.Println("Note: " + PluginHookNote)
+	default:
+		fmt.Println("`chop fix-hooks` can wrap the settings.json hooks; plugin hooks need manual handling (run it for options).")
+	}
 }

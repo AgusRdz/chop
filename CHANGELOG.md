@@ -2,6 +2,23 @@
 
 All notable changes to chop are documented here.
 
+## [1.39.4] - 2026-09-30
+
+### Bug Fixes
+- Keep hook-audit entries on one line and show the last 20 entries
+([b32015f](https://github.com/AgusRdz/chop/commit/b32015f9fbb1029a022a7ddad862cec89522d764))
+- Skip the competing-hook warning on Claude Code 2.1.168+
+([87511e6](https://github.com/AgusRdz/chop/commit/87511e657c22f37e037022044cb2c5c7240480a2))
+
+### Documentation
+- Manual Claude Code hook setup and troubleshooting
+([f0d2bde](https://github.com/AgusRdz/chop/commit/f0d2bde20b483ada6db36e54ae4eaadfa98f1181))
+
+### Other
+- Merge pull request #70 from AgusRdz/docs/manual-hook-setup
+([173cf71](https://github.com/AgusRdz/chop/commit/173cf71c2ad3ab22d46b77667a30f4ea05704d24))
+- Merge pull request #71 from AgusRdz/fix/hook-audit-and-claude-version
+([f2f81df](https://github.com/AgusRdz/chop/commit/f2f81df40ba0934a945b2f25cf815112da23f01e))
 ## [1.39.3] - 2026-09-30
 
 ### Bug Fixes

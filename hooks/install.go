@@ -12,6 +12,10 @@ import (
 	"github.com/AgusRdz/chop/config"
 )
 
+// PluginHookNote is shown whenever plugin-only conflicts are reported: a plugin hook
+// that emits no output does not override chop's rewritten command.
+const PluginHookNote = "a plugin hook that prints nothing may not affect chop; if wrapped commands still show compressed output in Claude Code, no action is needed"
+
 // chopBinaryName is used to identify direct chop hook entries in settings.json.
 const chopBinaryName = "chop"
 
@@ -88,7 +92,15 @@ func Install(version string) {
 				fmt.Printf("  - %s\n", path)
 			}
 		}
-		fmt.Println("Run `chop fix-hooks` to generate a combined wrapper script automatically.")
+		switch {
+		case len(conflicts.PluginConflicts) == 0:
+			fmt.Println("Run `chop fix-hooks` to generate a combined wrapper script automatically.")
+		case len(conflicts.SettingsConflicts) == 0:
+			fmt.Println("Plugin hooks can't be merged automatically; run `chop fix-hooks` for options.")
+			fmt.Println("Note: " + PluginHookNote)
+		default:
+			fmt.Println("`chop fix-hooks` can wrap the settings.json hooks; plugin hooks need manual handling (run it for options).")
+		}
 	}
 
 	binPath, _ := chopBinaryPath()

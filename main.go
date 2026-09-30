@@ -2228,6 +2228,13 @@ func runDoctor() {
 		}
 	}
 
+	// 8. Check for a newer release
+	if latest, ok := updater.AvailableUpdate(version); ok {
+		fmt.Printf("[!] update available %s -> %s\n", version, latest)
+		fmt.Println("    fix: chop update")
+		issues++
+	}
+
 	if issues == 0 {
 		fmt.Println("\nall good!")
 	} else {

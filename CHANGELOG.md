@@ -2,6 +2,15 @@
 
 All notable changes to chop are documented here.
 
+## [1.39.3] - 2026-09-30
+
+### Bug Fixes
+- Soften competing-hook warning; point to the Claude Code fix
+([d0772d9](https://github.com/AgusRdz/chop/commit/d0772d91021beb803a28b2e73e0753bda8662c05))
+
+### Other
+- Merge pull request #69 from AgusRdz/fix/soften-hook-conflict-warning
+([a47a3db](https://github.com/AgusRdz/chop/commit/a47a3dbbb82db0e97da0574c28c6ad9c5a17be3a))
 ## [1.39.2] - 2026-09-30
 
 ### Bug Fixes

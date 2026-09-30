@@ -2,9 +2,12 @@
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
+# go-winres needs a numeric a.b.c version; fall back to 0.0.0 for dev/describe output without one
+WINVER := $(or $(shell echo '$(VERSION)' | sed -nE 's/^v?([0-9]+\.[0-9]+\.[0-9]+).*/\1/p'),0.0.0)
+WINRES := GOOS= GOARCH= go run github.com/tc-hib/go-winres@v0.3.3 make --arch amd64 --product-version $(WINVER).0 --file-version $(WINVER).0
 
 build:
-	docker compose run --rm dev go build -ldflags="$(LDFLAGS)" -o bin/chop .
+	docker compose run --rm dev go build -trimpath -ldflags="$(LDFLAGS)" -o bin/chop .
 
 test:
 	docker compose run --rm dev go test ./... -v
@@ -37,7 +40,7 @@ else
 endif
 
 install:
-	docker compose run --rm dev sh -c "CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags='$(LDFLAGS)' -o $(BINARY) ."
+	docker compose run --rm dev sh -c "$(if $(filter windows,$(GOOS)),$(WINRES) && )CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags='$(LDFLAGS)' -o $(BINARY) ."
 	@mkdir -p "$(INSTALL_DIR)"
 	cp $(BINARY) "$(INSTALL_DIR)/chop$(EXT)"
 	@echo "installed chop $(VERSION) ($(GOOS)/$(GOARCH)) to $(INSTALL_DIR)/chop$(EXT)"
@@ -100,7 +103,8 @@ release-major: _require-git-cliff
 
 cross:
 	docker compose run --rm dev sh -c "\
-		CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='$(LDFLAGS)' -o bin/chop-linux-amd64 . && \
-		CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags='$(LDFLAGS)' -o bin/chop-darwin-amd64 . && \
-		CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags='$(LDFLAGS)' -o bin/chop-darwin-arm64 . && \
-		CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags='$(LDFLAGS)' -o bin/chop-windows-amd64.exe ."
+		$(WINRES) && \
+		CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='$(LDFLAGS)' -o bin/chop-linux-amd64 . && \
+		CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags='$(LDFLAGS)' -o bin/chop-darwin-amd64 . && \
+		CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags='$(LDFLAGS)' -o bin/chop-darwin-arm64 . && \
+		CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags='$(LDFLAGS)' -o bin/chop-windows-amd64.exe ."

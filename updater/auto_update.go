@@ -3,7 +3,7 @@ package updater
 import (
 	"fmt"
 	"os"
-	"os/exec"
+	"runtime"
 	"path/filepath"
 	"strings"
 	"time"
@@ -145,40 +145,46 @@ func ApplyPendingUpdate(currentVersion string) {
 	fmt.Fprintf(os.Stderr, "chop: auto-updated %s -> %s\n", currentVersion, newVersion)
 }
 
-// BackgroundCheck spawns a detached subprocess to check for updates.
-// When auto-update is on, the subprocess downloads the new binary.
-// When auto-update is off, it only records the available version for a hint message.
-// Silent on all errors - never disrupts command output.
-func BackgroundCheck(currentVersion string) {
+// CleanupOldBinary removes the ".old" copy left behind by a previous Windows update.
+// The rename-aside in replaceBinary can't delete it while the old process is running,
+// so the next doctor or gain run does it. Silent on all errors.
+func CleanupOldBinary() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	removeOldBinary(exe)
+}
+
+func removeOldBinary(exe string) {
+	os.Remove(exe + ".old")
+}
+
+// stagedBinaryPath returns where a downloaded update is staged inside dir.
+func stagedBinaryPath(dir, version string) string {
+	ext := ""
+	if runtime.GOOS == "windows" {
+		ext = ".exe"
+	}
+	return filepath.Join(dir, "chop-"+filepath.Base(version)+ext)
+}
+
+// CheckForUpdate performs a synchronous, throttled (24h) version check.
+// When auto-update is on: checks version + downloads the binary for next-run apply.
+// When auto-update is off: checks version + records it so a hint is shown.
+// Called only from management commands, never from the wrapped-command or hook paths.
+// Silent on errors; the only output is a stderr notice when a download starts.
+func CheckForUpdate(currentVersion string) {
 	if IsDev(currentVersion) {
 		return
 	}
 	if !shouldCheck() {
 		return
 	}
+	// Touch before the network call so a failure doesn't retry on every run.
+	touchLastCheck()
 
-	exe, err := os.Executable()
-	if err != nil {
-		return
-	}
-
-	// Spawn detached subprocess — parent exits immediately, child runs independently.
-	cmd := exec.Command(exe, "--_bg-update", currentVersion)
-	cmd.Stdin = nil
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	if cmd.Start() == nil {
-		// Mark check initiated so we don't spawn again within the interval.
-		touchLastCheck()
-	}
-}
-
-// RunBackgroundUpdate performs the version check and optionally downloads.
-// When auto-update is on: checks version + downloads binary for next-run apply.
-// When auto-update is off: checks version + records it so a hint is shown.
-// Called by the subprocess spawned from BackgroundCheck — runs after parent exits.
-func RunBackgroundUpdate(currentVersion string) {
-	latest, err := latestVersion()
+	latest, err := latestVersionWith(lookupClient)
 	if err != nil || !isNewer(latest, currentVersion) {
 		clearUpdateAvailable()
 		return
@@ -197,10 +203,11 @@ func RunBackgroundUpdate(currentVersion string) {
 		return
 	}
 
-	tmpPath := filepath.Join(dir, "pending.bin")
+	tmpPath := stagedBinaryPath(dir, latest)
 	binaryName := buildBinaryName()
 	url := fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", repo, latest, binaryName)
 
+	fmt.Fprintf(os.Stderr, "chop: downloading update %s -> %s...\n", currentVersion, latest)
 	if err := download(url, tmpPath); err != nil {
 		os.Remove(tmpPath)
 		return

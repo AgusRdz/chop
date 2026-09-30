@@ -59,10 +59,14 @@ chop completion fish > ~/.config/fish/completions/chop.fish
 
 ## PowerShell
 
-Add to your `$PROFILE`:
+Write the completion script to a file, then dot-source it from your `$PROFILE`:
 
 ```powershell
-chop completion powershell | Invoke-Expression
+chop completion powershell > $HOME\chop-completion.ps1
+```
+
+```powershell
+. $HOME\chop-completion.ps1
 ```
 
 To find your profile path: `echo $PROFILE`

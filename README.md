@@ -195,6 +195,22 @@ Update to latest:
 chop update
 ```
 
+### Migrating from ~/bin
+
+Older installs placed the binary in `~/bin`. To move it to the current default location (`~/.local/bin` on macOS / Linux, `%LOCALAPPDATA%\Programs\chop` on Windows):
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.sh | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.ps1 | iex
+```
+
 ## Verification
 
 All release binaries are signed with [GitHub Artifact Attestations](https://docs.github.com/en/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds),
@@ -306,7 +322,7 @@ Two commands support agent-first workflows:
 
 ```bash
 chop agent-info               # output JSON metadata (path, version, installed hooks)
-chop init --agent-handshake   # print a high-signal discovery message agents recognize
+chop init --agent-handshake   # print the resolved install path
 ```
 
 `setup` is also available as an alias for `init`, useful when working with Gemini CLI where `/init` conflicts with a built-in command:
@@ -452,7 +468,7 @@ Enable tab-completion for all chop commands and flags:
 source <(chop completion bash)        # bash — add to ~/.bashrc
 source <(chop completion zsh)         # zsh  — add to ~/.zshrc
 chop completion fish | source         # fish
-chop completion powershell | Invoke-Expression  # PowerShell
+chop completion powershell > $HOME\chop-completion.ps1  # PowerShell — then add `. $HOME\chop-completion.ps1` to $PROFILE
 ```
 
 → Setup instructions: [docs/shell-completions.md](docs/shell-completions.md)
@@ -464,7 +480,7 @@ chop completion powershell | Invoke-Expression  # PowerShell
 ```bash
 chop doctor            # check and auto-fix common issues
 chop update            # update to the latest version
-chop auto-update on    # enable background auto-updates
+chop auto-update on    # stage updates found by doctor/gain (checked at most once per 24h)
 chop enable / disable  # resume or bypass chop globally
 chop uninstall         # remove everything
 chop reset             # clear tracking data, keep installation

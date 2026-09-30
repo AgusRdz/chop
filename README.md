@@ -275,6 +275,46 @@ chop init --status       # check if installed
 After this, every command Claude Code runs gets compressed transparently.
 You'll see `chop git status` in the tool calls — that's the hook working.
 
+#### Manual setup / troubleshooting
+
+If `chop init --global` fails, add the hook to `~/.claude/settings.json` yourself. Put this entry under
+`hooks.PreToolUse`, next to any entries already there rather than replacing them. Keep the binary path quoted:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "\"C:/Users/<you>/AppData/Local/Programs/chop/chop.exe\" hook" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+On macOS/Linux the command is `"\"/home/<you>/.local/bin/chop\" hook"` (or wherever `which chop` points).
+Restart Claude Code after editing.
+
+To check that it's working:
+
+```bash
+chop init --status   # hook present in settings.json
+chop doctor          # full health check, fixes a hook that points at the wrong binary
+chop hook-audit      # last 20 rewrites — new entries mean the hook is running
+```
+
+If rewrites stop showing up in `chop hook-audit`:
+
+- **Binary missing:** check that the path in the hook still exists. On Windows, antivirus ML engines have
+  quarantined `chop.exe` as a false positive before. Check your AV's quarantine log, restore or reinstall,
+  and report the false positive to the vendor.
+- **Old Claude Code:** versions before 2.1.168 may drop chop's rewrite when other Bash `PreToolUse` hooks
+  are active ([anthropics/claude-code#15897](https://github.com/anthropics/claude-code/issues/15897)). Run `claude update`.
+- **chop disabled:** `chop enable` turns it back on after `chop disable`.
+
 ### Gemini CLI
 
 ```bash

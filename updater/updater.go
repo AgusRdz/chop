@@ -22,6 +22,12 @@ var httpClient = &http.Client{
 	Timeout: 30 * time.Second,
 }
 
+// lookupClient is used for the periodic version lookup, which runs inline in
+// management commands and must not stall them.
+var lookupClient = &http.Client{
+	Timeout: 3 * time.Second,
+}
+
 // publicKey is the hex-encoded Ed25519 public key used to verify release signatures.
 const publicKey = "f2bbc7ef2c427df9963a15f403ea17ff08ed5ee2b6d6e6ac49920e19be255d5f"
 
@@ -99,8 +105,12 @@ func Run(currentVersion string) {
 }
 
 func latestVersion() (string, error) {
+	return latestVersionWith(httpClient)
+}
+
+func latestVersionWith(client *http.Client) (string, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", repo)
-	resp, err := httpClient.Get(url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return "", fmt.Errorf("could not reach GitHub (check your internet connection or firewall): %w", err)
 	}

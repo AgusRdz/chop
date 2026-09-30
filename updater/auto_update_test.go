@@ -1,8 +1,11 @@
 package updater
 
 import (
+	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -80,10 +83,91 @@ func TestApplyPendingUpdate_MissingBinary(t *testing.T) {
 	}
 }
 
-func TestBackgroundCheck_DevVersion(t *testing.T) {
-	// Should be a no-op for dev builds — just verify no panic
-	BackgroundCheck("dev")
-	BackgroundCheck("v1.0.0-dirty")
+// failTransport fails the test if any network request is attempted.
+type failTransport struct{ t *testing.T }
+
+func (f failTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	f.t.Errorf("unexpected network request to %s", r.URL)
+	return nil, errors.New("network disabled in test")
+}
+
+func stubLookupClient(t *testing.T) {
+	orig := lookupClient
+	lookupClient = &http.Client{Transport: failTransport{t}}
+	t.Cleanup(func() { lookupClient = orig })
+}
+
+func TestCheckForUpdate_DevVersion(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	stubLookupClient(t)
+
+	CheckForUpdate("dev")
+	CheckForUpdate("v1.0.0-dirty")
+
+	path, _ := lastCheckPath()
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("dev versions must not touch the last-check file")
+	}
+}
+
+func TestCheckForUpdate_Throttled(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	stubLookupClient(t)
+	touchLastCheck()
+
+	CheckForUpdate("v1.0.0") // would fail the test via failTransport if it hit the network
+}
+
+func TestCheckForUpdate_TouchesBeforeLookup(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	orig := lookupClient
+	lookupClient = &http.Client{Transport: failTransportSilent{}}
+	t.Cleanup(func() { lookupClient = orig })
+
+	CheckForUpdate("v1.0.0")
+
+	if shouldCheck() {
+		t.Error("failed lookup should still count as a check so it is not retried every run")
+	}
+}
+
+type failTransportSilent struct{}
+
+func (failTransportSilent) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("offline")
+}
+
+func TestStagedBinaryPath(t *testing.T) {
+	dir := t.TempDir()
+	got := stagedBinaryPath(dir, "v1.2.3")
+	want := filepath.Join(dir, "chop-v1.2.3")
+	if runtime.GOOS == "windows" {
+		want += ".exe"
+	}
+	if got != want {
+		t.Errorf("stagedBinaryPath = %q, want %q", got, want)
+	}
+	if filepath.Dir(stagedBinaryPath(dir, "../../evil")) != dir {
+		t.Error("version must not escape the data dir")
+	}
+}
+
+func TestRemoveOldBinary(t *testing.T) {
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "chop")
+	old := exe + ".old"
+	os.WriteFile(exe, []byte("current"), 0o700)
+	os.WriteFile(old, []byte("stale"), 0o700)
+
+	removeOldBinary(exe)
+
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Error(".old should be removed")
+	}
+	if _, err := os.Stat(exe); err != nil {
+		t.Error("current binary must be untouched")
+	}
+	removeOldBinary(exe) // missing .old is not an error
 }
 
 func TestTouchLastCheck(t *testing.T) {

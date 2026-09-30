@@ -53,25 +53,35 @@ func SetAutoUpdate(enabled bool) error {
 	return err
 }
 
-// NotifyIfUpdateAvailable prints a hint to stderr if a newer version is known.
-// Called at startup when auto-update is off. Silent on all errors.
-func NotifyIfUpdateAvailable(currentVersion string) {
-	if IsDev(currentVersion) || IsAutoUpdateEnabled() {
-		return
+// AvailableUpdate returns the newer version recorded by the last check, if any.
+func AvailableUpdate(currentVersion string) (string, bool) {
+	if IsDev(currentVersion) {
+		return "", false
 	}
 	p, err := updateAvailablePath()
 	if err != nil {
-		return
+		return "", false
 	}
 	data, err := os.ReadFile(p)
 	if err != nil {
-		return
+		return "", false
 	}
 	latest := strings.TrimSpace(string(data))
 	if latest == "" || latest == currentVersion || !isNewer(latest, currentVersion) {
+		return "", false
+	}
+	return latest, true
+}
+
+// NotifyIfUpdateAvailable prints a hint to stderr if a newer version is known.
+// Called at startup when auto-update is off. Silent on all errors.
+func NotifyIfUpdateAvailable(currentVersion string) {
+	if IsAutoUpdateEnabled() {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "chop: update available %s -> %s (run 'chop update')\n", currentVersion, latest)
+	if latest, ok := AvailableUpdate(currentVersion); ok {
+		fmt.Fprintf(os.Stderr, "chop: update available %s -> %s (run 'chop update')\n", currentVersion, latest)
+	}
 }
 
 // clearUpdateAvailable removes the hint file (called after a successful manual update

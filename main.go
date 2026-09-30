@@ -35,6 +35,7 @@ func main() {
 	isHookPath := len(os.Args) >= 2 && os.Args[1] == "hook"
 	if !isHookPath {
 		updater.ApplyPendingUpdate(version)
+		updater.CleanupOldBinary()
 		updater.NotifyIfUpdateAvailable(version)
 	}
 
@@ -58,11 +59,6 @@ func main() {
 		return
 	case "--post-update-check":
 		checkInstallDir()
-		return
-	case "--_bg-update":
-		if len(os.Args) >= 3 {
-			updater.RunBackgroundUpdate(os.Args[2])
-		}
 		return
 	case "update":
 		updater.Run(version)
@@ -355,9 +351,6 @@ func main() {
 
 	fmt.Print(finalOutput)
 	trackSilent(fullCmd, raw, finalOutput)
-
-	// Check for updates in background (every 24h, downloads silently)
-	updater.BackgroundCheck(version)
 
 	os.Exit(exitCode)
 }
@@ -773,6 +766,7 @@ func configSet(key, value string) {
 }
 
 func runGain(args []string) {
+	updater.CheckForUpdate(version)
 	var showHistory, showSummary, showUnchopped, verbose, showAll, showProjects bool
 	var skipCmd, unskipCmd, deleteCmd, noTrackCmd, resumeTrackCmd, exportFormat, sinceStr, projectFilter string
 	historyLimit := 20
@@ -2119,6 +2113,8 @@ func checkInstallDir() {
 
 func runDoctor() {
 	issues := 0
+
+	updater.CheckForUpdate(version)
 
 	// 1. Check if hook is installed
 	installed, _ := hooks.IsInstalled()

@@ -480,7 +480,7 @@ chop completion powershell > $HOME\chop-completion.ps1  # PowerShell — then ad
 ```bash
 chop doctor            # check and auto-fix common issues
 chop update            # update to the latest version
-chop auto-update on    # enable background auto-updates
+chop auto-update on    # stage updates found by doctor/gain (checked at most once per 24h)
 chop enable / disable  # resume or bypass chop globally
 chop uninstall         # remove everything
 chop reset             # clear tracking data, keep installation

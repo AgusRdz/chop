@@ -152,7 +152,7 @@ func main() {
 		return
 	case "init", "setup":
 		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: chop init <--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status|--agent-handshake>")
+			fmt.Fprintln(os.Stderr, "usage: chop init {--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status|--agent-handshake}")
 			os.Exit(1)
 		}
 		switch os.Args[2] {
@@ -275,7 +275,7 @@ func main() {
 				fmt.Printf("chop Antigravity IDE hook is installed (%s)\n", aPath)
 			}
 		default:
-			fmt.Fprintf(os.Stderr, "unknown flag %q\nusage: chop init <--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status>\n", os.Args[2])
+			fmt.Fprintf(os.Stderr, "unknown flag %q\nusage: chop init {--global|--gemini|--codex|--pi|--antigravity|--uninstall|--status|--agent-handshake}\n", os.Args[2])
 			os.Exit(1)
 		}
 		return

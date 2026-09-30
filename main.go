@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -1096,24 +1095,19 @@ func runHookAudit(args []string) {
 	}
 	defer f.Close()
 
-	// Read all lines, keep last 20
-	var lines []string
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
+	entries, err := hooks.RecentAuditEntries(f, 20)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "chop: failed to read audit log: %v\n", err)
+		os.Exit(1)
 	}
 
-	if len(lines) == 0 {
+	if len(entries) == 0 {
 		fmt.Println("no hook audit log entries")
 		return
 	}
 
-	start := 0
-	if len(lines) > 20 {
-		start = len(lines) - 20
-	}
-	for _, line := range lines[start:] {
-		fmt.Println(line)
+	for _, entry := range entries {
+		fmt.Println(entry)
 	}
 }
 

@@ -2,6 +2,33 @@
 
 All notable changes to chop are documented here.
 
+## [1.39.1] - 2026-09-30
+
+### Bug Fixes
+- Drop download-and-execute one-liners from binary output
+([c7dcac3](https://github.com/AgusRdz/chop/commit/c7dcac303f77b7e32e5a5f683af66b6ec5bf6cb4))
+- Recommend dot-sourcing PowerShell completion instead of Invoke-Expression
+([f6e4a96](https://github.com/AgusRdz/chop/commit/f6e4a9628b39b9254804472bf9a3928f826afa55))
+- Plain output for init --agent-handshake
+([783c24d](https://github.com/AgusRdz/chop/commit/783c24d39c278bed130e5d8a8aef1884c79c58ca))
+- Drop detached self-spawn from wrapped commands; clearer staging; clean .old
+([143b90f](https://github.com/AgusRdz/chop/commit/143b90ff234c8296a3e632da8b9eb17e0c0922a3))
+- Report an available update
+([9ae4727](https://github.com/AgusRdz/chop/commit/9ae472799a546a2ac99a47e30ecb436d2096d470))
+- Run update housekeeping only from doctor and gain
+([06aa5b3](https://github.com/AgusRdz/chop/commit/06aa5b3a6b36d0754f2543647ec938e4d4881294))
+
+### CI/CD
+- Authenticode-sign Windows release binary via SignPath
+([aa68cef](https://github.com/AgusRdz/chop/commit/aa68cefc74be6d4a7999a7d96c4e422172a90609))
+
+### Other
+- Merge pull request #66 from AgusRdz/ci/windows-code-signing
+([e6a6f6d](https://github.com/AgusRdz/chop/commit/e6a6f6d91fd0321f87d6cbeb721f71497136ffd6))
+- Embed Windows version info and manifest via go-winres
+([8a08e29](https://github.com/AgusRdz/chop/commit/8a08e29ea58a1ec876fb4c3c7617bb447985f077))
+- Merge pull request #67 from AgusRdz/fix/av-heuristic-triggers
+([bf966f5](https://github.com/AgusRdz/chop/commit/bf966f50b8a65f87266d660f7cf773ff84576245))
 ## [1.39.0] - 2026-09-13
 
 ### Features

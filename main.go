@@ -2109,14 +2109,12 @@ func checkInstallDir() {
 	fmt.Println("note: chop is installed in ~/bin, which is no longer the recommended location.")
 
 	if runtime.GOOS == "windows" {
-		fmt.Println("run the migration script to move it to %LOCALAPPDATA%\\Programs\\chop:")
-		fmt.Println("")
-		fmt.Println("  irm https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.ps1 | iex")
+		fmt.Println("to move it to %LOCALAPPDATA%\\Programs\\chop, see:")
 	} else {
-		fmt.Println("run the migration script to move it to ~/.local/bin:")
-		fmt.Println("")
-		fmt.Println("  curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.sh | sh")
+		fmt.Println("to move it to ~/.local/bin, see:")
 	}
+	fmt.Println("")
+	fmt.Println("  https://github.com/AgusRdz/chop#migrating-from-bin")
 }
 
 func runDoctor() {
@@ -2183,11 +2181,7 @@ func runDoctor() {
 			oldDir := filepath.Join(home, "bin")
 			if strings.HasPrefix(exe, oldDir+string(filepath.Separator)) {
 				fmt.Println("[!] binary is in legacy ~/bin location")
-				if runtime.GOOS == "windows" {
-					fmt.Println("    fix: irm https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.ps1 | iex")
-				} else {
-					fmt.Println("    fix: curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.sh | sh")
-				}
+				fmt.Println("    fix: see https://github.com/AgusRdz/chop#migrating-from-bin")
 				issues++
 			}
 		}

@@ -195,6 +195,22 @@ Update to latest:
 chop update
 ```
 
+### Migrating from ~/bin
+
+Older installs placed the binary in `~/bin`. To move it to the current default location (`~/.local/bin` on macOS / Linux, `%LOCALAPPDATA%\Programs\chop` on Windows):
+
+**macOS / Linux:**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.sh | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/AgusRdz/chop/main/migrate.ps1 | iex
+```
+
 ## Verification
 
 All release binaries are signed with [GitHub Artifact Attestations](https://docs.github.com/en/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds),

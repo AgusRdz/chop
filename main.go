@@ -2148,9 +2148,9 @@ func runDoctor() {
 	// 3. Check for competing Bash PreToolUse hooks (Claude Code bug #15897)
 	conflicts, err := hooks.FindConflictingBashHooks()
 	if err == nil && conflicts.HasConflict() {
-		fmt.Println("[!] competing Bash PreToolUse hooks detected — chop compression will be silently disabled")
+		fmt.Println("[!] competing Bash PreToolUse hooks detected — chop compression may be disabled")
 		fmt.Println("    cause: https://github.com/anthropics/claude-code/issues/15897")
-		fmt.Println("    when multiple Bash PreToolUse hooks are active, Claude Code drops updatedInput from all of them")
+		fmt.Println("    when multiple Bash PreToolUse hooks are active, Claude Code may drop updatedInput from all of them (reported fixed in 2.1.168; run `claude update`)")
 		if len(conflicts.SettingsConflicts) > 0 {
 			fmt.Println("    competing hooks in ~/.claude/settings.json:")
 			for _, cmd := range conflicts.SettingsConflicts {
@@ -2265,6 +2265,7 @@ func runFixHooks() {
 
 	fmt.Println("Competing Bash PreToolUse hooks detected:")
 	fmt.Println("  cause: https://github.com/anthropics/claude-code/issues/15897")
+	fmt.Println("  reported fixed in Claude Code 2.1.168 — run `claude update` first; the options below are only needed on older versions")
 	for _, cmd := range conflicts.SettingsConflicts {
 		fmt.Printf("  [settings.json] %s\n", cmd)
 	}

@@ -292,7 +292,7 @@ func main() {
 	// Load user-defined custom filters
 	filters.SetUserFilters(config.LoadCustomFiltersWithLocal(cwd))
 
-	cmd := exec.Command(command, args...)
+	cmd := newCommand(command, args...)
 	cmd.Stdin = os.Stdin
 
 	output, err := cmd.CombinedOutput()
@@ -405,7 +405,7 @@ func runCapture(args []string) {
 
 	validateCommand(command)
 
-	cmd := exec.Command(command, cmdArgs...)
+	cmd := newCommand(command, cmdArgs...)
 	cmd.Stdin = os.Stdin
 
 	output, err := cmd.CombinedOutput()
@@ -1484,7 +1484,7 @@ func runDiff(args []string) {
 
 		validateCommand(command)
 
-		cmd := exec.Command(command, cmdArgs...)
+		cmd := newCommand(command, cmdArgs...)
 		cmd.Stdin = os.Stdin
 		output, err := cmd.CombinedOutput()
 		if err != nil {

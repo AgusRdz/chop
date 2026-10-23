@@ -2,6 +2,23 @@
 
 All notable changes to chop are documented here.
 
+## [1.39.5] - 2026-10-23
+
+### Bug Fixes
+- Quote non-plain args when running wrapped commands on Windows
+([be8af5f](https://github.com/AgusRdz/chop/commit/be8af5fa6bf66b003cc4a1bf2cee0bda5da56acf))
+
+### Documentation
+- Add GitHub social preview card
+([4e08651](https://github.com/AgusRdz/chop/commit/4e0865194d5bb08c7ec42e238bf0e9587323ed09))
+
+### Miscellaneous
+- Remove SignPath code signing
+([5361a25](https://github.com/AgusRdz/chop/commit/5361a2561cd32857dd1936aadd714c2d8a55cb5f))
+
+### Other
+- Merge pull request #72 from AgusRdz/chore/remove-signpath
+([be2a1bc](https://github.com/AgusRdz/chop/commit/be2a1bc843a2f5f24a76bc2022c473d6395919ec))
 ## [1.39.4] - 2026-09-30
 
 ### Bug Fixes

@@ -53,6 +53,9 @@ func TestSupportedCommandGetsPrepended(t *testing.T) {
 		{`npm run test 2>&1`, `chop npm run test`},
 		{`npm test -- --watch=false 2>&1`, `chop npm test -- --watch=false`},
 		{`go test ./... 2>&1`, `chop go test ./...`},
+		// redirect chars and newlines inside quotes are not redirects or multi-line scripts
+		{`git commit -m "a > b"`, `chop git commit -m "a > b"`},
+		{"git commit -m \"line1\nline2\"", "chop git commit -m \"line1\nline2\""},
 	}
 
 	for _, tt := range tests {
@@ -98,6 +101,45 @@ func TestPipePassthrough(t *testing.T) {
 			_, shouldModify, _ := processHookInput(makeInput(cmd))
 			if shouldModify {
 				t.Errorf("should not modify pipe command: %s", cmd)
+			}
+		})
+	}
+}
+
+func TestHeredocAndMultilinePassthrough(t *testing.T) {
+	tests := []string{
+		"cat > notes.md <<'EOF'\nrun git status && git diff to check\nEOF",
+		"cat >notes.md <<'EOF'\nhello\nEOF",
+		"cat <<'EOF' >notes.md\nhello\nEOF",
+		"git commit -F - <<'EOF'\nfix: x; y\nEOF",
+		"git status\ngit diff",
+		"cat <<< 'text'",
+	}
+	for _, cmd := range tests {
+		t.Run(cmd, func(t *testing.T) {
+			_, shouldModify, _ := processHookInput(makeInput(cmd))
+			if shouldModify {
+				t.Errorf("should not modify heredoc/multi-line command: %q", cmd)
+			}
+		})
+	}
+}
+
+func TestUnspacedFileRedirectPassthrough(t *testing.T) {
+	tests := []string{
+		"git log >out.txt",
+		"git log>out.txt",
+		"npm test 2>err.log",
+		"npm test &>all.log",
+		"cat <input.txt",
+		"git diff >>patch.diff",
+		"cd repo && git log >out.txt",
+	}
+	for _, cmd := range tests {
+		t.Run(cmd, func(t *testing.T) {
+			_, shouldModify, _ := processHookInput(makeInput(cmd))
+			if shouldModify {
+				t.Errorf("should not modify file redirect command: %q", cmd)
 			}
 		})
 	}

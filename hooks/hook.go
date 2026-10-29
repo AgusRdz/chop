@@ -42,10 +42,10 @@ var shellBuiltins = []string{
 	"cd ", "export ", "source ", "echo ", "printf ", "set ", "unset ", "alias ", "eval ",
 }
 
-// pipeRedirectOperators make wrapping ambiguous — skip the entire command.
-// File redirects always have surrounding spaces ("> file", ">> file", "< file").
-// fd-style redirects like "2>&1" intentionally do not match so they can be wrapped (and later stripped).
-var pipeRedirectOperators = []string{" | ", " > ", " >> ", " < "}
+// pipeOperators make wrapping ambiguous — skip the entire command.
+// File redirects are detected separately by hasFileRedirect; fd-style redirects
+// like "2>&1" are still wrapped (and later stripped).
+var pipeOperators = []string{" | "}
 
 // logicalSeparators chain independent commands — split and wrap each segment.
 var logicalSeparators = []string{" && ", " || ", " ; "}
@@ -231,6 +231,30 @@ func containsOutsideQuotes(s, needle string) bool {
 	return indexOutsideQuotes(s, needle) != -1
 }
 
+// hasFileRedirect reports whether command redirects to or from a file outside quotes,
+// with or without surrounding spaces. fd duplications like "2>&1" don't count.
+func hasFileRedirect(command string) bool {
+	for _, op := range []string{">", "<"} {
+		rest := command
+		for {
+			idx := indexOutsideQuotes(rest, op)
+			if idx == -1 {
+				break
+			}
+			rest = strings.TrimPrefix(rest[idx+1:], op)
+			if !isFdDuplication(rest) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isFdDuplication reports whether s (the text after a redirect operator) is "&N" or "&-".
+func isFdDuplication(s string) bool {
+	return len(s) >= 2 && s[0] == '&' && ((s[1] >= '0' && s[1] <= '9') || s[1] == '-')
+}
+
 // hookInput represents the JSON payload received from Claude Code's PreToolUse hook.
 type hookInput struct {
 	SessionID     string          `json:"session_id"`
@@ -330,6 +354,12 @@ func rewriteCommand(command string) (string, bool, string) {
 		return "", false, command
 	}
 
+	// Heredocs and multi-line scripts can't be split safely: body text would be
+	// parsed as commands and rewritten, corrupting what gets written.
+	if containsOutsideQuotes(command, "\n") || containsOutsideQuotes(command, "<<") {
+		return "", false, command
+	}
+
 	// Logical chaining operators — split first, then evaluate each segment independently.
 	for _, op := range logicalSeparators {
 		if containsOutsideQuotes(command, op) {
@@ -366,11 +396,14 @@ func rewriteCommand(command string) (string, bool, string) {
 		}
 	}
 
-	// Pipe and redirect operators — can't wrap safely
-	for _, op := range pipeRedirectOperators {
+	// Pipes and file redirects — can't wrap safely
+	for _, op := range pipeOperators {
 		if containsOutsideQuotes(command, op) {
 			return "", false, command
 		}
+	}
+	if hasFileRedirect(command) {
+		return "", false, command
 	}
 
 	// Single command — wrap if supported
@@ -403,12 +436,15 @@ func shouldWrap(command string) bool {
 		return false
 	}
 
-	// Pipe and redirect operators — can't wrap safely (guard here covers both
-	// single-command and individual compound segments).
-	for _, op := range pipeRedirectOperators {
+	// Pipes and file redirects — can't wrap safely (guard here covers both
+	// single-command and individual compound segments). "2>&1" is still wrapped.
+	for _, op := range pipeOperators {
 		if containsOutsideQuotes(command, op) {
 			return false
 		}
+	}
+	if hasFileRedirect(command) {
+		return false
 	}
 	baseCmd, _ := splitHookInvocation(command)
 	return supportedCommands[baseCmd]
